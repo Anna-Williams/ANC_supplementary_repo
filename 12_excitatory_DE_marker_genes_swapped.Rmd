@@ -1,0 +1,352 @@
+---
+title: "Find marker genes for subclustered ENs"
+author: "Luise A. Seeker/Sunniva Bostrand"
+date: "10/05/2021"
+output: html_document
+---
+
+# Load libraries
+
+```{r, echo = F}
+setwd("/exports/eddie/scratch/s1359339/HD/20211005_swapped_data/")
+library(Seurat)
+library(dplyr)
+library(viridis) 
+library(ggsci)
+library(scales)
+library(here)
+library(limma)
+library(StatMeasures)
+library(ggplot2)
+#library(scclusteval)
+library(gtools)
+#For monocle pseudotime:
+#library(monocle3)
+#library(Seuratwrappers)
+```
+
+
+# Pick colour pallets
+
+```{r, echo = F}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7)
+show_col(mycoloursP, labels =F)
+```
+
+# Load data
+```{r}
+ENs <- readRDS(here("ENs_out/20211201_ENs.rds"))
+DefaultAssay(ENs) <- "RNA"
+
+seur_comb <- readRDS(here("20211005_seur_comb_qc_integrated_annot_swappedsamples.rds"))
+DefaultAssay(seur_comb) <- "RNA"
+```
+
+
+# Identification of marker genes
+```{r}
+dir.create(here("ENs_out", "ENs_markers"))
+dir.create(here("ENs_out","ENs_markers", "mark_genes_res05"))
+
+int_res_all_mark <- function(seur_obj, 
+                             int_cols,
+                             only_pos = TRUE,
+                             min_pct = 0.25,
+                             logfc_threshold = 0.25,
+                             fil_pct_1 = 0.25,
+                             fil_pct_2 = 0.6,
+                             avg_log = 1.2,
+                             save_dir = getwd(),
+                             test_use = "MAST"
+                             ){
+  for(i in 1:length(int_cols)){
+    Idents(seur_obj) <- int_cols[i]
+    all_mark <- FindAllMarkers(seur_obj, 
+                               only.pos = only_pos, 
+                               min.pct = min_pct, 
+                               logfc.threshold = logfc_threshold,
+                               test.use = test_use)
+    fil_mark<- subset(all_mark, 
+                      all_mark$pct.1 > fil_pct_1 & 
+                        all_mark$pct.2 < fil_pct_2 )
+    
+    write.csv(all_mark, paste(save_dir, "/all_mark", int_cols[i], ".csv", sep = "" ))
+    write.csv(fil_mark, paste(save_dir, "/fil_mark", int_cols[i], ".csv", sep = "" ))
+    
+  }
+}
+
+
+ENs@meta.data$en_clusters_named <- factor(ENs@meta.data$en_clusters_named,
+                                             levels = c("Granule_1", 
+                                                        "Ex_1_cx", 
+                                                        "Granule_2",
+                                                        "Ex_2_cx",
+                                                        "Granule_3",
+                                                        "Ex_3",
+                                                        "Ex_4",
+                                                        "Ex_5_cx",
+                                                        "Ex_6_cx",
+                                                        "Ex_7_cx",
+                                                        "Ex_8_cx",
+                                                        "Ex_9_hc"))
+
+int_res_all_mark(ENs, 
+                 int_cols = c("en_clusters_named"),
+                 save_dir = here("ENs_out","ENs_markers", "mark_genes_res05"))
+```
+
+Pairwise comparison of neighbouring clusters 
+
+
+```{r}
+clust_id_list_2 <- list(list("Granule_1", "Granule_2"), list("Granule_2", "Granule_1"),
+                        list("Granule_1", "Granule_3"), list("Granule_3", "Granule_1"),
+                        list("Granule_2", "Granule_3"), list("Granule_3","Granule_2"),
+                        list("Ex_1_cx", "Ex_7_cx"), list("Ex_7_cx", "Ex_1_cx"),
+                        list("Ex_1_cx", "Ex_8_cx"), list("Ex_8_cx", "Ex_1_cx"),
+                        list("Ex_1_cx", "Ex_5_cx"), list("Ex_5_cx", "Ex_1_cx"),
+                        list("Ex_1_cx", "Ex_2_cx"), list("Ex_2_cx", "Ex_1_cx"),
+                        list("Ex_1_cx", "Ex_6_cx"), list("Ex_6_cx", "Ex_1_cx"),
+                        list("Ex_7_cx", "Ex_8_cx"), list("Ex_8_cx", "Ex_7_cx"),
+                        list("Ex_7_cx", "Ex_5_cx"), list("Ex_5_cx", "Ex_7_cx"),
+                        list("Ex_5_cx", "Ex_8_cx"), list("Ex_8_cx", "Ex_5_cx"),
+                        list("Ex_5_cx", "Ex_6_cx"), list("Ex_6_cx", "Ex_5_cx"),
+                        list("Ex_2_cx", "Ex_6_cx"), list("Ex_6_cx", "Ex_2_cx"),
+                        list("Ex_2_cx", "Ex_9_hc"), list("Ex_9_hc", "Ex_2_cx"),
+                        list("Ex_2_cx", "Ex_4"), list("Ex_4", "Ex_2_cx"),
+                        list("Ex_4","Ex_9_hc"), list("Ex_9_hc", "Ex_4"),
+                        list("Ex_4","Ex_3"), list("Ex_3", "Ex_4"),
+                        list("Ex_3","Ex_9_hc"), list("Ex_9_hc", "Ex_3"),
+                        list("Ex_4","Ex_6_cx"), list("Ex_6_cx", "Ex_4"))
+
+pairwise_mark <- function(seur_obj, 
+                             int_cols,
+                             clust_id_list,
+                             only_pos = TRUE,
+                             min_pct = 0.25,
+                             logfc_threshold = 0.25,
+                             fil_pct_1 = 0.25,
+                             fil_pct_2 = 0.1,
+                             save_dir = getwd(),
+                             test_use = "MAST"){
+  for(k in 1:length(int_cols)){
+    Idents(seur_obj) <- int_cols[k]
+    for(i in 1: length(clust_id_list)){
+      clust_mark <- FindMarkers(seur_obj, 
+                                ident.1 = clust_id_list[[i]][[1]], 
+                                ident.2 = clust_id_list[[i]][[2]],
+                                min.pct = min_pct, 
+                                test.use = test_use)
+      clust_mark$cluster <- clust_id_list[[i]][[1]]
+      clust_mark$comp_to_clust <- clust_id_list[[i]][[2]]
+      write.csv(clust_mark, 
+                paste(save_dir, 
+                      "/", 
+                      int_cols[k],
+                      "_",
+                      clust_id_list[[i]][[1]],
+                      "_",
+                      clust_id_list[[i]][[2]],
+                      ".csv", sep = "" ))
+    }
+  }
+}
+dir.create(here("ENs_out","ENs_markers", "mark_genes_res05", "pairwise"))
+
+pairwise_mark(ENs, 
+              int_cols = "en_clusters_named",
+              save_dir = here("ENs_out","ENs_markers", "mark_genes_res05", "pairwise"),
+              clust_id_list = clust_id_list_2)
+```
+
+Read in data for plotting differentially expressed genes
+```{r}
+gen_mark_list <-function(file_dir = getwd(),
+                         avg_log = 1.2,
+                         pct_1 = 0.25,
+                         pct_2 = 0.6,
+                         pairwise = FALSE
+                         ){
+  temp = list.files(path = file_dir,
+                    pattern="*.csv")
+  myfiles = lapply(paste(file_dir, temp, sep = "/"), read.csv)
+  
+  for(i in 1:length(myfiles)){
+    dat <- myfiles[[i]]
+    av_log_fil <- subset(dat, dat$avg_log2FC > avg_log & 
+                       dat$pct.1 > pct_1 & 
+                       dat$pct.2 < pct_2)
+    if(pairwise == TRUE){
+      
+      top10 <- av_log_fil %>% top_n(10, avg_log2FC)
+      top10$gene <- top10$X
+    }else{
+    av_log_fil$cluster <- as.character(av_log_fil$cluster)
+    top10 <- av_log_fil %>% group_by(cluster) %>% 
+      top_n(10, avg_log2FC)
+    }
+    
+    if(i ==1){
+      fil_genes <- top10
+    }else{
+      fil_genes <- rbind(fil_genes, top10)
+    }
+    
+    fil_genes <- fil_genes[!duplicated(fil_genes$gene),]
+    
+  }
+  
+  return(fil_genes)
+}
+
+fil_genes <- gen_mark_list(file_dir = here("ENs_out", "ENs_markers", "mark_genes_res05"))
+fil_genes_pw <- gen_mark_list(file_dir = here("ENs_out","ENs_markers", "mark_genes_res05", "pairwise"),
+                              pairwise = TRUE)
+int_genes <- c(fil_genes$gene, fil_genes_pw$gene)
+int_genes <- unique(int_genes)
+```
+
+```{r}
+# every cell name
+Idents(ENs) <- "en_clusters_named"
+cluster_averages <- AverageExpression(ENs, group.by = "en_clusters_named",
+                                      return.seurat = TRUE)
+cluster_averages@meta.data$cluster <- factor(levels(as.factor(ENs@meta.data$en_clusters_named)),
+                                             levels = c("Granule_1", "Ex_1_cx", "Granule_2","Ex_2_cx", "Granule_3", "Ex_3", "Ex_4","Ex_5_cx","Ex_6_cx", "Ex_7_cx","Ex_8_cx","Ex_9_hc"))
+
+hm_av <- DoHeatmap(object = cluster_averages, 
+          features = int_genes, 
+          label = TRUE,
+          group.by = "cluster",
+          group.colors = mycoloursP[6:40],
+          draw.lines = F) + scale_fill_viridis()
+hm_av
+```
+
+
+```{r, fig.width = 8, fig.height=11}
+dir.create(here("ENs_out","ENs_markers", "DE_genes_vis"))
+pdf(here("ENs_out","ENs_markers", "DE_genes_vis","Res_0_5_av_hm.pdf"), 
+    paper="a4", width=8, height=11.5)
+print(hm_av)
+#dev.off()
+```
+
+
+
+```{r, fig.width=30, fig.height = 9}
+DotPlot(ENs, group.by = "en_clusters_named", features = int_genes) + RotatedAxis()
+```
+# save VlnPlots
+
+
+```{r}
+save_vln_plots <- function(seur_obj,
+                           marker_list,
+                           save_dir = getwd(),
+                           numb_genes = 10,
+                           plotheight = 20,
+                           plotwidth = 8,
+                           group_by = Idents(seur_obj),
+                           pt_size = 0.1,
+                           n_col = 1){
+  gene_groups <- split(marker_list, 
+                       ceiling(seq_along(marker_list) / numb_genes))
+    
+    for(i in 1:length(gene_groups)){
+        
+          pdf(paste(save_dir, "/clust_marker_vln_", i, ".pdf", sep=""), 
+              height=plotheight, width = plotwidth)
+          finalPlot<-VlnPlot(seur_obj, features = unlist(gene_groups[i]),
+                             group.by = group_by, pt.size= pt_size, ncol=1)
+          print(finalPlot)
+          graphics.off()
+          
+        }
+      }
+      
+     
+save_vln_plots(seur_obj= ENs, 
+               marker_list = int_genes,
+               save_dir = here("ENs_out","ENs_markers", "DE_genes_vis"),
+               group_by = "en_clusters_named")
+save_vln_plots(seur_obj= ENs, 
+               marker_list = int_genes,
+               save_dir = here("ENs_out","ENs_markers", "DE_genes_vis"),
+               group_by = "en_clusters_named",
+               pt_size = 0,
+               plotheight = 30)
+dir.create(here("ENs_out","ENs_markers", "DE_genes_vis", "vln", "whole_dataset"),
+           recursive = T)
+save_vln_plots(seur_obj= seur_comb, 
+               marker_list = int_genes,
+               save_dir = here("ENs_out","ENs_markers", "DE_genes_vis", "vln", "whole_dataset"),
+               group_by = "clusters_named",
+               pt_size = 0,
+               plotheight = 30)
+               
+```
+
+
+# save FeaturePlots
+
+
+```{r}
+save_feat_plots <- function(seur_obj,
+                           marker_list,
+                           save_dir = getwd(),
+                           numb_genes = 16,
+                           plotheight = 18,
+                           plotwidth = 20,
+                           split_by = "NULL",
+                           n_col = 4){
+  gene_groups <- split(marker_list, 
+                       ceiling(seq_along(marker_list) / numb_genes))
+    
+    for(i in 1:length(gene_groups)){
+      if(split_by != "NULL"){
+        feature_plot<-FeaturePlot(seur_obj, 
+                                    features = unlist(gene_groups[i]),
+                                    ncol = n_col, split.by = split_by)
+      }else{
+        feature_plot<-FeaturePlot(seur_obj, 
+                                    features = unlist(gene_groups[i]),
+                                    ncol = n_col)
+      }
+        
+          pdf(paste(save_dir, "/clust_marker_feat_", i, ".pdf", sep=""), 
+              height=plotheight, width = plotwidth)
+          
+          print(feature_plot)
+          
+          graphics.off()
+          
+        }
+      }
+      
+dir.create(here("ENs_out","ENs_markers", "DE_genes_vis", "Feature_pl", "ENs"), recursive = T)
+     
+save_feat_plots(seur_obj= ENs, 
+               marker_list = int_genes,
+               save_dir = here("ENs_out","ENs_markers", "DE_genes_vis", "Feature_pl", "ENs"))
+
+dir.create(here("ENs_out","ENs_markers", "DE_genes_vis", "Feature_pl", "all_cell_types"), recursive = T)
+
+save_feat_plots(seur_obj= seur_comb, 
+               marker_list = int_genes,
+               save_dir = here("ENs_out","ENs_markers", "DE_genes_vis", "Feature_pl", "all_cell_types"))
+               
+```
+
+
+```{r}
+sessionInfo()
+```

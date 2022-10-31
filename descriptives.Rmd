@@ -1,0 +1,32 @@
+---
+title: "Descriptives for HD donors"
+author: "Sunniva Bostrand"
+date: "24/06/2022"
+output: html_document
+---:
+
+```{r}
+metadata <- read.csv("M:/PhD/Year 3/10X/20220624_HDproj_metadata.csv")
+
+#check correlation between RIN and PMI
+cor.test(metadata$PMI_round, metadata$RIN_val)
+
+#find proportion of samples with RIN above 6
+sum(metadata$RIN_val>6)/length(metadata$RIN_val)
+
+#subset for unique donors only for descriptives
+metadata <- metadata[!duplicated(metadata$donor_id),]
+#test for diff in age and PMI
+wilcox.test(age~donor_status,data=metadata )
+wilcox.test(PMI_round~donor_status,data=metadata )
+
+#find descriptives for each group
+split <- split(metadata, metadata$donor_status)
+HD <- split$HD
+Ctrl <- split$Ctrl
+summary(HD$age)
+summary(Ctrl$age)
+summary(as.numeric(HD$PMI_round))
+summary(as.numeric(Ctrl$PMI_round))
+
+```

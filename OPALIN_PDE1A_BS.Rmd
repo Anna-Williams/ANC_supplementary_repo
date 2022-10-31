@@ -1,0 +1,119 @@
+---
+title: "Validation of OPALIN/PDE1A using BaseScope"
+author: "Sunniva Bostrand"
+date: '2022-10-28'
+output: html_document
+---
+```{r}
+setwd("M:/PhD/")
+library(RColorBrewer)
+library(ggsci)
+library(scales)
+library(here)
+library(dplyr)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+```
+
+
+```{r}
+dat_BS <- read.csv("M:/PhD/Year 4/Validation/BaseScope/OPALIN_PDE1A_BS.csv")
+
+#add ID column and region
+for(i in 1:length(dat_BS$Image)){
+  dat_BS$ID[i] <- strsplit(dat_BS$Image, "_")[[i]][3]
+  dat_BS$FOV[i] <- strsplit(dat_BS$Image, "_")[[i]][4]
+}
+
+#add tissue column
+dat_BS$tissue <- ifelse(dat_BS$FOV == "GM1" | dat_BS$FOV == "GM2" | dat_BS$FOV == "GM3"| dat_BS$FOV == "GM4", "GM", "WM")
+
+#number ROIs
+dat_BS[,"ROI"] <- NA
+dat_BS[dat_BS$FOV == "GM1", "ROI"] <- "1"
+dat_BS[dat_BS$FOV == "GM2", "ROI"] <- "2"
+dat_BS[dat_BS$FOV == "GM3", "ROI"] <- "3"
+dat_BS[dat_BS$FOV == "GM4", "ROI"] <- "4"
+dat_BS[dat_BS$FOV == "WM1", "ROI"] <- "5"
+dat_BS[dat_BS$FOV == "WM2", "ROI"] <- "6"
+dat_BS[dat_BS$FOV == "WM3", "ROI"] <- "7"
+dat_BS[dat_BS$FOV == "WM4", "ROI"] <- "8"
+
+
+
+#Assign unique ID for each FOV 
+split <- split(dat_BS, dat_BS$ID)
+for (i in 1:length(names(split))) {
+  temp <-split[[i]]
+  temp$FOV_num <- paste(names(split)[i], temp$ROI)
+  if(i == 1){
+    t <- temp
+  }else{
+    t <- rbind(temp, dat_BS)}
+}
+
+dat_BS$Condition <- ifelse(dat_BS$ID == "1" | dat_BS$ID == "2" | dat_BS$ID == "4" | dat_BS$ID == "7" |dat_BS$ID == "8" | dat_BS$ID == "3",  "HD", "Ctrl")
+
+
+
+dat_BS$prop_dPos <- dat_BS$dPos/dat_BS$OPALIN
+```
+
+#Statistical analysis
+```{r}
+#normality test
+shapiro.test(dat_BS$prop_dPos)
+
+#Mann-Whitney U for condition
+MU_cond <- wilcox.test(prop_dPos ~ Condition, data = dat_BS)
+MU_cond #W = 796, p-value = 0.1931
+
+#adjust for multiple comparison
+MU_cond$p.adj <- p.adjust(MU_cond$p.value, "hochberg", n = 2)
+MU_cond$p.adj #0.3861709
+
+#Mann-Whitney U for tissue
+MU_tis <- wilcox.test(prop_dPos ~ tissue, paired = F, data = dat_BS)
+MU_tis#W = 771, p-value = 0.3341
+
+#adjust for multiple comparison
+MU_tis$p.adj <- p.adjust(MU_tis$p.value, "hochberg", n = 2)
+MU_tis$p.adj #0.6681927
+```
+
+
+#Plot and save
+```{r}
+dat_BS$Myelinated <- ifelse(dat_BS$tissue == "WM", dat_BS$Myelinated <- "Y", "N")
+
+
+p2 <- ggplot(dat_BS, aes(x = Condition, y = prop_dPos, fill = Condition)) +
+  geom_boxplot()+ geom_jitter(position=position_dodge(width=0.75)) +
+  theme_classic() + ylab("Proportion of OPALIN+ cells also +ive for PDE1A") + xlab("Condition") + 
+  scale_fill_manual(values = (brewer.pal(10,"Paired")[3:4])) + theme(axis.text = element_text(size = 20))  +
+  theme(axis.title = element_text(size = 25))  + theme(legend.text = element_text(size = 20))  + theme(legend.title = element_text(size = 20)) + ylim(0,.4)
+
+
+
+p3 <- ggplot(dat_BS, aes(x = Myelinated, y = prop_dPos, fill = Myelinated)) +
+  geom_boxplot()+ geom_jitter(position=position_dodge(width=0.75)) +
+  theme_classic() + ylab("Proportion of OPALIN+ cells also +ive for PDE1A") + xlab("Myelinated") + 
+  scale_fill_manual(values = (brewer.pal(13,"Paired")[9:11])) + theme(axis.text = element_text(size = 20))  +
+  theme(axis.title = element_text(size = 25))  + theme(legend.text = element_text(size = 20))  + theme(legend.title = element_text(size = 20)) + ylim(0,.4)
+
+
+PlotList<- list()
+PlotList[[1]]<-p2
+PlotList[[2]]<-p3
+
+
+pdf(here("PhD","Thesis","thesisplots","20221017_OPALIN_PDE1A_BS_boxplots.pdf"), width = 7, height = 9)
+print(PlotList)
+dev.off()
+```
+
+```{r}
+SessionInfo()
+```
+

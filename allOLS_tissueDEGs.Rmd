@@ -1,0 +1,75 @@
+---
+title: "DGE by condition across oligodendrocyte clusters"
+author: "Sunniva Bostrand"
+date: "18/10/2022"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+    toc_depth: 4
+    theme: united
+---
+
+# Load libraries
+```{r}
+setwd("/exports/eddie/scratch/s1359339/HD/20211005_swapped_data")
+library(Seurat)
+library(here)
+library(ggsci)
+library(dplyr)
+library(viridis)
+library(ggplot2)
+```
+
+```{r, echo = F}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7)
+```
+
+```{r}
+oligos <- readRDS("/exports/eddie/scratch/s1359339/HD/20211005_swapped_data/20211005_Oligos_qc_integrated_annot_swappedsamples.rds")
+seur_comb <- readRDS("/exports/eddie/scratch/s1359339/HD/20211005_swapped_data/20211005_seur_comb_qc_integrated_annot_swappedsamples.rds")
+```
+
+# Perform differential gene expression with condition separately for each tissue
+
+```{r}
+# create folder where to save data
+
+dir.create(here( "DGE_condition_tissue_split"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition", "CB"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition", "CN"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition", "HC"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition", "FrCx"))
+dir.create(here( "DGE_condition_tissue_split", "DE_genes_vis"))
+
+Idents(oligos) <- "ol_clusters_named"
+tissue_list <- levels(as.factor(oligos$Tissue))
+OLs <- subset(oligos, idents = c("Oligo_Cedar", "Oligo_Rowan", "Oligo_Ash", "Oligo_Birch", "Oligo_Maple", "Oligo_Elder", "Oligo_Oak"))
+
+for (i in 1:length(tissue_list)){
+  clu_dat <- subset(OLs, Tissue == tissue_list[i])
+  Idents(clu_dat) <- "donor_status"
+  mark_condition <- FindAllMarkers(clu_dat,
+                         only.pos = F, 
+                         min.pct = 0.25, 
+                         logfc.threshold = 0.25, 
+                         test.use = "MAST")
+  save_name_condition <- paste(tissue_list[i],"condition_mark.csv", sep = "_")
+  write.csv(mark_condition, here("DGE_condition_tissue_split", "across_cluster", 
+                               "condition", tissue_list[i], save_name_condition))
+}
+```
+
+```{r}
+sessionInfo()
+```

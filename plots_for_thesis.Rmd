@@ -1,0 +1,613 @@
+---
+title: "Various plots for thesis"
+author: "Sunniva Bostrand"
+date: '2022-10-28'
+output: html_document
+---
+
+This script shows how I generated some of the additional plots for the thesis figures
+
+#set wd and load libraries
+```{r}
+setwd("/exports/eddie/scratch/s1359339/HD/06_swapped")
+library(Seurat)
+library(dplyr)
+library(here)
+library(ggsci)
+library(scater)
+```
+
+# Prepare colours
+```{r}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7, "black", "blue")
+```
+
+
+# Load datasets and update annotations
+```{r}
+#astrocytes
+astros <-readRDS(here("subclusters",
+                    "20211203_astros.rds"))
+astros <- RenameIdents(astros,
+                       "Astro_1" ="Astro_Mint",
+                       "Astro_2" = "Astro_Basil",
+                       "Astro_3" = "Astro_Chives",
+                       "Astro_4_CB" = "Astro_Sage",
+                       "Astro_5" = "Astro_Thyme",
+                       "Astro_6_CB" = "Astro_Chervil")
+astros$as_clusters_named <- Idents(astros)
+DefaultAssay(astros) <- "RNA"
+
+#microglia
+mglia <- readRDS(here("subclusters",
+                    "20211027_Mglia.rds"))
+
+mglia <- RenameIdents(mglia,"MM_Rose" = "Mglia_Rose",
+                                                        "MM_Violet" = "Mglia_Violet",
+                                                        "MM_Lily" = "Mglia_Lily",
+                                                        "MM_Daisy" = "Mglia_Daisy",
+                                                        "MM_Tulip" = "Mglia_Tulip",
+                                                        "MM_Orchid" = "BAMs",
+                                                        "MM_Lupin" = "Mglia_Lupin",
+                                                       "MM_Pansy" = "Mglia_Pansy")
+mglia$mm_clusters_named <- Idents(mglia)
+DefaultAssay(mglia) <- "RNA"
+
+#vascular cells
+endoperi <- readRDS(here("subclusters",
+                    "20211201_endoperi.rds"))
+DefaultAssay(endoperi) <- "RNA"
+  
+#ENs
+ENs <- readRDS(here("subclusters",
+                    "20211201_ENs.rds"))
+DefaultAssay(ENs) <- "RNA"
+
+#INs
+INs <- readRDS(here("subclusters",
+                    "20220105_INs.rds"))
+DefaultAssay(INs) <- "RNA"
+
+#oligos
+oligos <- readRDS(here("subclusters",
+                    "20211005_Oligos_qc_integrated_annot_swappedsamples.rds"))
+oligos <- RenameIdents(oligos,   "Oligo_cedar" = "Oligo_Cedar",
+                                                       "Oligo_rowan" = "Oligo_Rowan",
+                                                        "Oligo_ash" = "Oligo_Ash",
+                                                        "Oligo_birch" = "Oligo_Birch",
+                                                        "Oligo_maple" = "Oligo_Maple", 
+                                                        "Oligo_elder" = "Oligo_Elder",
+                                                        "Oligo_oak" = "Oligo_Oak",
+                                                       "OPC_pine" = "OPC_Pine",
+                                                        "OPC_fir" = "OPC_Fir",
+                                                        "COP_cherry" = "COP_Cherry",
+                                                        "COP_apple" = "COP_Apple")
+oligos$ol_clusters_named <- Idents(oligos)
+DefaultAssay(oligos) <- "RNA"
+```
+
+###Chapter 3###
+
+#Various UMAP plots
+```{r}
+#DimPlots
+p1 <- DimPlot(oligos, label = T, cols = mycoloursP, raster = F, label.size = 6, repel = T) + NoLegend() 
+p2 <- DimPlot(astros, label = T, cols = mycoloursP, raster = F, label.size = 6, repel = T) + NoLegend() 
+p3 <- DimPlot(mglia, label = T, cols = mycoloursP, raster = F, label.size = 6, repel = T) + NoLegend() 
+p4 <- DimPlot(ENs, label = T, cols = mycoloursP, raster = F, label.size = 6, repel = T)+ NoLegend() 
+p5 <- DimPlot(INs, label = T, cols = mycoloursP, raster = F, label.size = 6, repel = T) + NoLegend() 
+p6 <- DimPlot(endoperi, label = T, cols = mycoloursP, raster = F, label.size = 6, repel = T) + NoLegend()
+p7 <- DimPlot(seur_comb, label = T, repel = T, cols = mycoloursP, raster = F,label.size = 6) + NoLegend()
+p8 <- DimPlot(seur_comb, label = F, cols = mycoloursP, raster = F,
+split.by = "donor_status") + NoLegend()
+p9 <- DimPlot(seur_comb, label = F, cols = mycoloursP, raster = F,
+split.by = "Tissue") + NoLegend()
+p10 <- DimPlot(seur_comb, label = F, cols = mycoloursP, raster = F) + NoLegend()
+
+PlotList<- list()
+PlotList[[1]]<-p1
+PlotList[[2]]<-p2
+PlotList[[3]]<-p3
+PlotList[[4]]<-p4
+PlotList[[5]]<-p5
+PlotList[[6]]<-p6
+
+dir.create(here("thesisplots"))
+
+pdf(here("thesisplots","20220629_DimPlot_subclusters.pdf"), width = 7, height = 6)
+print(PlotList)
+dev.off()
+
+
+pdf(here("thesisplots","20220408_DimPlot_seurcomb.pdf"), width = 12, height = 10)
+print(p7)
+dev.off()
+
+pdf(here("thesisplots","20220408_DimPlot_split_byCondition.pdf"), width = 10, height = 6)
+print(p8)
+dev.off()
+
+pdf(here("thesisplots","20220408_DimPlot_split_byRegion.pdf"), width = 18, height = 8)
+print(p9)
+dev.off()
+
+pdf(here("thesisplots","20220408_DimPlot_seurcomb_nolabel.pdf"), width = 10, height = 8)
+print(p10)
+dev.off()
+
+```
+
+#plot makers for broad clusters
+```{r}
+seur_comb$clusters_named<- factor(seur_comb$clusters_named,
+                                             levels = c("EN1_Granule",
+                                                      "EN2_CUX2",
+                                                      "EN3_SPARCL1",
+                                                      "EN4_Hipp",
+                                                      "EN5",
+                                                      "EN6_Hipp",
+                                                      "EN7",
+                                                      "EN8" ,
+                                                      "IN_Basket",
+                                                      "IN_VIP",
+                                                      "IN_SST",
+                                                      "IN_PPP1RB1",
+                                                       "Oligo1",
+                                                     "Oligo2",
+                                                     "OPC",
+                                                     "MiMa1",
+                                                     "MiMa2",
+                                                     "Astro1",
+                                                     "Astro2", 
+                                                     "ECs/Peri",
+                                                     "Ependymal",
+                                                     "T-Cells"  ))
+
+
+DotPlot(seur_comb, features = c("SNAP25","SLC17A7","RELN","CUX2", "SPARCL1","GAD2", "HCN1","VIP","SST", "PPP1R1B", "MOG", "MBP","PDGFRA", "GPR17","CX3CR1", "ITGAM","CD74","ALDH1L1", "GFAP", "VWF", "CLDN5", "PDGFRB", "NOTCH3","CFAP299", "CD2", "CD8A")) + RotatedAxis()
+```
+
+#barplot showing regional heterogeneity of broad clusters
+```{r}
+###Tissue whole data 
+sum_condition_cluster <- table(seur_comb$clusters_named, seur_comb$Tissue)
+#To look the other way
+#sum_condition_cluster <- table(seur_comb$Tissue, seur_comb$clusters_named)
+
+
+##not normalised to cluster size
+
+#prop_condition_table <- prop.table(sum_condition_cluster, margin = 2)
+#prop_condition_table_1 <- prop.table(prop_condition_table, margin = 1)
+prop_condition_table_1 <- prop.table(sum_condition_cluster, margin = 1)
+prop_condition <- as.data.frame(prop_condition_table_1)
+colnames(prop_condition) <- c("cluster", "condition", "proportion")
+#prop_condition$cluster <- factor(prop_condition$cluster, levels = unique(prop_condition$cluster))
+prop_condition$cluster <- factor(prop_condition$cluster,
+                                             levels = c("EN1_Granule",
+                                                      "EN2_CUX2",
+                                                      "EN3_SPARCL1",
+                                                      "EN4_Hipp",
+                                                      "EN5",
+                                                      "EN6_Hipp",
+                                                      "EN7",
+                                                      "EN8" ,
+                                                      "IN_Basket",
+                                                      "IN_VIP",
+                                                      "IN_SST",
+                                                      "IN_PPP1RB1",
+                                                       "Oligo1",
+                                                     "Oligo2",
+                                                     "OPC",
+                                                     "MiMa1",
+                                                     "MiMa2",
+                                                     "Astro1",
+                                                     "Astro2", 
+                                                     "ECs/Peri",
+                                                     "Ependymal",
+                                                     "T-Cells"  ))
+
+bar <- ggplot(data = prop_condition, aes(x = cluster, y = proportion, fill = condition)) + geom_bar(stat = "identity") + scale_fill_manual(values = c(mycoloursP[47], mycoloursP[45], mycoloursP[13], mycoloursP[35])) + theme_classic()  + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+
+#subcluster marker dot plots
+
+```{r}
+gen_mark_list <-function(file_dir = getwd(),
+                         avg_log = .8,
+                         pct_1 = 0.25,
+                         pct_2 = 0.6,
+                         pairwise = FALSE
+                         ){
+  temp = list.files(path = file_dir,
+                    pattern="*.csv")
+  myfiles = lapply(paste(file_dir, temp, sep = "/"), read.csv)
+  
+  for(i in 1:length(myfiles)){
+    dat <- myfiles[[i]]
+    av_log_fil <- subset(dat, dat$avg_log2FC > avg_log & 
+                       dat$pct.1 > pct_1 & 
+                       dat$pct.2 < pct_2)
+    if(pairwise == TRUE){
+      
+      top10 <- av_log_fil %>% top_n(5, avg_log2FC)
+      top10$gene <- top10$X
+    }else{
+    av_log_fil$cluster <- as.character(av_log_fil$cluster)
+    top5 <- av_log_fil %>% group_by(cluster) %>% 
+      top_n(5, avg_log2FC)
+    }
+    
+    if(i ==1){
+      fil_genes <- top5
+    }else{
+      fil_genes <- rbind(fil_genes, top5)
+    }
+    
+    fil_genes <- fil_genes[!duplicated(fil_genes$gene),]
+    
+  }
+  
+  return(fil_genes)
+}
+
+fil_genes_en <- gen_mark_list(file_dir = here("markers", "en"))
+int_genes_en <- unique(fil_genes_en$gene)
+
+fil_genes_in <- gen_mark_list(file_dir = here("markers", "in"))
+int_genes_in <- unique(fil_genes_in$gene)
+
+fil_genes_ol <- gen_mark_list(file_dir = here("markers", "OPC_COP_OL_merged"))
+int_genes_ol <- unique(fil_genes_ol$gene)
+
+fil_genes_ep <- gen_mark_list(file_dir = here("markers", "ep"))
+int_genes_ep <- unique(fil_genes_ep$gene)
+
+fil_genes_as <- gen_mark_list(file_dir = here("markers", "as"))
+int_genes_as <- unique(fil_genes_as$gene)
+
+fil_genes_mm <- gen_mark_list(file_dir = here("markers", "mm"))
+int_genes_mm <- unique(fil_genes_mm$gene)
+
+
+#plot
+
+ol <- DotPlot(oligos, features = int_genes_ol) + RotatedAxis()
+ep <- DotPlot(endoperi, features = int_genes_ep) + RotatedAxis()
+mm <- DotPlot(mglia, features = int_genes_mm) + RotatedAxis()
+as <- DotPlot(astros, features = int_genes_as) + RotatedAxis()
+ins <- DotPlot(INs, features = int_genes_in) + RotatedAxis()
+en <- DotPlot(ENs, features = int_genes_en) + RotatedAxis()
+
+
+PlotList<- list()
+PlotList[[1]] <- ol
+PlotList[[2]] <- ep
+PlotList[[3]] <- mm
+PlotList[[4]] <- as
+PlotList[[5]] <- ins
+PlotList[[6]] <- en
+
+pdf(here("thesisplots","DotPlots_subclusters.pdf"), width = 13, height = 4)
+print(PlotList)
+dev.off()
+
+```
+
+#barplots showing regional heterogeneity for subclusters
+```{r, fig.width = 8, fig.height=11}
+seur_list <- c(INs, ENs, oligos, astros, endoperi, mglia)
+
+for(i in 1:length(seur_list)){
+  srt <- seur_list[[i]]
+sum_condition_cluster <- table(Idents(srt), srt$Tissue)
+##normalised to cluster size
+prop_condition_table_1 <- prop.table(sum_condition_cluster, margin = 1)
+#prop_condition_table_1 <- prop.table(prop_condition_table, margin = 2)
+prop_condition <- as.data.frame(prop_condition_table_1)
+colnames(prop_condition) <- c("cluster", "condition", "proportion")
+#prop_condition$cluster <- factor(prop_condition$cluster, levels = unique(prop_condition$cluster))
+bar <- ggplot(data = prop_condition, aes(x = cluster, y = proportion, fill = condition)) + geom_bar(stat = "identity") + scale_fill_manual(values = c(mycoloursP[47], mycoloursP[45], mycoloursP[13], mycoloursP[35])) + theme_classic()  + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+name <- paste(i, "v2.barplot", "region.pdf", sep = "_")
+pdf(here("thesisplots", name), width = 10, height = 6)
+print(bar)
+dev.off()}
+```
+
+
+###Chapter 4###
+#pie chart - ideally check that this works
+```{r}
+oligos <- read.csv("M:/PhD/Year 4/10X_HD/04_DGE_condition_tissue_split/within_cluster/condition/oligos_condition_DEGs_wCB.csv")
+mglia <- read.csv("M:/PhD/Year 4/10X_HD/06_mglia_out/DGE_condition_tissue_split/within_cluster/condition/Mglia_condition_DEGs.csv")
+astros <- read.csv("M:/PhD/Year 4/10X_HD/07_astros_out/DGE_condition_tissue_split/within_cluster/condition/astros_condition_DEGs.csv")
+vasc <- read.csv("M:/PhD/Year 4/10X_HD/08_endoperi_out/DGE_condition_tissue_split/within_cluster/condition/endoperi_condition_DEGs.csv")
+ENs <- read.csv("M:/PhD/Year 4/10X_HD/09_ENs_out/DGE_condition_tissue_split/within_cluster/condition/ENs_condition_DEGs.csv")
+INs <- read.csv("M:/PhD/Year 4/10X_HD/10_INs_out/DGE_condition_tissue_split/within_cluster/condition/INs_condition_DEGs.csv")
+
+INs <- INs$gene
+ENs <- ENs$gene
+vasc <- vasc$gene
+mglia <- mglia$gene
+oligos <- oligos$gene
+astros <- astros$gene
+
+#read in what from where #dge across regions and tissue
+#what is all
+
+all <- rbind(c(ENs,INs,vasc,oligos,mglia,astros))
+prop = c(length(vasc)/length(all), 
+        length(INs)/length(all), 
+        length(ENs)/length(all),
+        length(oligos)/length(all), 
+        length(mglia)/length(all), 
+        length(astros)/length(all))
+        
+prop = prop*100
+        
+df <- data.frame(
+  group = c("Vascular", "INs", "ENs", "Oligodendroglia", "Microglia", "Astrocytes"),
+  value = prop)
+  
+
+p1 <- ggplot(df, aes(x = "" , y = value, fill = group)) +
+  geom_col(width = 1, color = 1) +
+  coord_polar(theta = "y") +
+  scale_fill_brewer(palette = "Pastel1") +
+  #geom_label_repel(data = df2,
+                  # aes(y = pos, label = paste0(value, "%")),
+                   #size = 4.5, nudge_x = 2.5, show.legend = FALSE) +
+  guides(fill = guide_legend(title = "Group")) +
+  theme_void() + scale_fill_manual(values = mycoloursP[10:15]) + theme(legend.text=element_text(size = 15)) + theme(legend.title=element_text(size = 15))
+
+##save the plot etc and update the figure
+pdf(here("PhD", "thesis","thesisplots","20220824_piechart.pdf"), width = 8, height = 5)#change
+print(p1)
+dev.off()
+```
+
+#Count and plot MSNs
+```{r}
+#subset for CN
+seur_comb <- seur_comb[,seur_comb$Tissue == "CN"]
+#subset for PPP1RB+ clusters
+seur_comb <- subset(seur_comb, idents =c("IN_1_cn", "IN_12_cn", "IN_9_cn"))
+met_dat <- seur_comb@meta.data
+# count rows per sample (= number of nuclei per sample)
+total_df<- met_dat %>% group_by(ProcessNumber) %>%
+  summarise(total_nuc_count = length(ProcessNumber))
+# merge with metadata
+met_dat <- merge(met_dat, total_df, by = "ProcessNumber")
+met_dat <- met_dat[!duplicated(met_dat$ProcessNumber),]
+
+bp <- ggplot(met_dat, aes(donor_status, total_nuc_count, fill = donor_status, shape = donor_status)) +
+  geom_boxplot() + geom_point() + theme_classic() + theme(legend.position = "none") + scale_fill_brewer(palette = "Dark2") +   ylab("Number nl expressing PPP1R1B per sample") + xlab("Donor Status") + theme(axis.text = element_text(size = 25))  + theme(axis.title = element_text(size = 25))     
+
+
+wilcox.test(met_dat$total_nuc_count ~ met_dat$donor_status)
+# Wilcoxon rank sum exact test
+#data:  met_dat$total_nuc_count by met_dat$donor_status
+#W = 18, p-value = 0.06349
+#alternative hypothesis: true location shift is not equal to 0
+
+dp <- DimPlot(seur_comb, split.by = "donor_status", cols =  mycoloursP)
+
+pdf(here("thesisplots","20220824_MSN_barplot.pdf"), width = 5, height = 9)
+print(bp)
+dev.off()
+
+pdf(here("thesisplots","20220824_MSN_dimplot.pdf"), width = 8, height = 5)
+print(dp)
+dev.off()
+ 
+```
+
+#Beeswarm plots from Milo output
+```{r}
+as_da <- readRDS("/exports/eddie/scratch/s1359339/HD/06_swapped/subclusters/astros_da_results.rds")
+as_da$as_clusters_named <- ifelse(as_da$as_clusters_named_fraction < 0.7, "Mixed", as_da$as_clusters_named)
+as_da$as_clusters_named <- factor(as_da$as_clusters_named, levels = c("Astro_Oligo",
+                                                                      "Astro_Chervil",
+                                                                      "Astro_Thyme",
+                                                                      "Astro_Sage",
+                                                                      "Astro_Chives",
+                                                                      "Astro_Basil",
+                                                                      "Astro_Mint",
+                                                                      "Mixed"))
+p1 <- plotDAbeeswarm(as_da, group.by = "as_clusters_named") + scale_x_discrete(limits = rev(levels(as_da$as_clusters_named)))        
+
+
+
+
+ol_da <- readRDS("/exports/eddie/scratch/s1359339/HD/06_swapped/subclusters/Oligos_da_results.rds")
+
+ol_da$ol_clusters_named <- ifelse(ol_da$ol_clusters_named_fraction < 0.7, "Mixed", ol_da$ol_clusters_named)
+
+ol_da$ol_clusters_named <- factor(ol_da$ol_clusters_named, levels = c("Mixed", "Oligo_Cedar",
+                                                       "Oligo_Rowan",
+                                                        "Oligo_Ash", 
+                                                        "Oligo_Birch",
+                                                        "Oligo_Maple", 
+                                                        "Oligo_Elder",
+                                                        "Oligo_Oak",
+                                                       "OPC_Pine",
+                                                        "OPC_Fir",
+                                                        "COP_Cherry",
+                                                        "COP_Apple"))
+
+
+p2 <- plotDAbeeswarm(ol_da, group.by = "ol_clusters_named")
+
+
+mm_da <- readRDS("/exports/eddie/scratch/s1359339/HD/06_swapped/subclusters/mglia_da_results.rds")
+
+mm_da$mm_clusters_named <- ifelse(mm_da$mm_clusters_named_fraction < 0.7, "Mixed", mm_da$mm_clusters_named)
+
+mm_da$mm_clusters_named <- factor(mm_da$mm_clusters_named, levels = c("Mixed",  "Mglia_Rose",
+                                                                    "Mglia_Violet",
+                                                        "Mglia_Lily",
+                                                        "Mglia_Daisy",
+                                                        "Mglia_Tulip",
+                                                        "BAMs",
+                                                        "Mglia_Lupin",
+                                                        "Mglia_Pansy"))
+
+
+p3 <- plotDAbeeswarm(mm_da, group.by = "mm_clusters_named")
+
+PlotList<- list()
+PlotList[[1]]<-p1
+PlotList[[2]]<-p2
+PlotList[[3]]<-p3
+
+pdf(here("thesisplots","20220902_beeswarm_glia.pdf"), width = 7, height = 5)
+print(PlotList)
+dev.off()
+
+```
+
+
+#Barplots showing composition with region and condition
+```{r}
+#add metadata column encoding a combination of region and condition
+
+oligos <- AddMetaData(oligos, metadata = "NULL", col.name = "regionCondition")
+
+   oligos@meta.data <- within(oligos@meta.data, regionCondition[donor_status == "HD" & Tissue == "FrCx"] <- "FrCx_HD")
+ oligos@meta.data <- within(oligos@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "FrCx"] <- "FrCx_Ctrl")
+
+   oligos@meta.data <- within(oligos@meta.data, regionCondition[donor_status == "HD" & Tissue == "CN"] <- "CN_HD")
+ oligos@meta.data <- within(oligos@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "CN"] <- "CN_Ctrl")
+
+   oligos@meta.data <- within(oligos@meta.data, regionCondition[donor_status == "HD" & Tissue == "HC"] <- "HC_HD")
+ oligos@meta.data <- within(oligos@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "HC"] <- "HC_Ctrl")
+oligos@meta.data <- within(oligos@meta.data, regionCondition[donor_status == "HD" & Tissue == "CB"] <- "CB_HD")
+ oligos@meta.data <- within(oligos@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "CB"] <- "CB_Ctrl")
+
+ mglia <- AddMetaData(mglia, metadata = "NULL", col.name = "regionCondition")
+
+   mglia@meta.data <- within(mglia@meta.data, regionCondition[donor_status == "HD" & Tissue == "FrCx"] <- "FrCx_HD")
+ mglia@meta.data <- within(mglia@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "FrCx"] <- "FrCx_Ctrl")
+
+   mglia@meta.data <- within(mglia@meta.data, regionCondition[donor_status == "HD" & Tissue == "CN"] <- "CN_HD")
+ mglia@meta.data <- within(mglia@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "CN"] <- "CN_Ctrl")
+
+   mglia@meta.data <- within(mglia@meta.data, regionCondition[donor_status == "HD" & Tissue == "HC"] <- "HC_HD")
+ mglia@meta.data <- within(mglia@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "HC"] <- "HC_Ctrl")
+
+   mglia@meta.data <- within(mglia@meta.data, regionCondition[donor_status == "HD" & Tissue == "CB"] <- "CB_HD")
+ mglia@meta.data <- within(mglia@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "CB"] <- "CB_Ctrl")
+
+ 
+ astros <- AddMetaData(astros, metadata = "NULL", col.name = "regionCondition")
+
+   astros@meta.data <- within(astros@meta.data, regionCondition[donor_status == "HD" & Tissue == "FrCx"] <- "FrCx_HD")
+ astros@meta.data <- within(astros@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "FrCx"] <- "FrCx_Ctrl")
+
+   astros@meta.data <- within(astros@meta.data, regionCondition[donor_status == "HD" & Tissue == "CN"] <- "CN_HD")
+ astros@meta.data <- within(astros@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "CN"] <- "CN_Ctrl")
+
+   astros@meta.data <- within(astros@meta.data, regionCondition[donor_status == "HD" & Tissue == "HC"] <- "HC_HD")
+ astros@meta.data <- within(astros@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "HC"] <- "HC_Ctrl")
+astros@meta.data <- within(astros@meta.data, regionCondition[donor_status == "HD" & Tissue == "CB"] <- "CB_HD")
+ astros@meta.data <- within(astros@meta.data, regionCondition[donor_status == "Ctrl" & Tissue == "CB"] <- "CB_Ctrl")
+
+#generate barplots for each type of glia
+ 
+seur_list <- c(astros, mglia,oligos)
+
+for(i in 1:length(seur_list)){
+          srt <- seur_list[[i]]
+            sum_condition_cluster <- table(Idents(srt), srt$regionCondition)
+            ##normalised to cluster size
+            prop_condition_table <- prop.table(sum_condition_cluster, margin = 1)
+            prop_condition_table_1 <- prop.table(prop_condition_table, margin = 2)
+            prop_condition <- as.data.frame(prop_condition_table_1)
+            colnames(prop_condition) <- c("cluster", "condition", "proportion")
+            #prop_condition$cluster <- factor(prop_condition$cluster, levels = unique(prop_condition$cluster))
+            bar <- ggplot(data = prop_condition, aes(x = condition, y = proportion, fill = cluster)) + geom_bar(stat = "identity") + scale_fill_manual(values = mycoloursP)  + theme_classic() +
+              theme(axis.text = element_text(size = 20))  + theme(axis.title = element_text(size = 20)) + theme(legend.text=element_text(size = 15)) + theme(legend.title=element_text(size = 15)) + coord_flip()
+            name <- paste(i,"barplot_anna", "regioncondition.pdf", sep = "_")
+            pdf(here("thesisplots", name), width = 12, height = 4)
+            print(bar)
+            dev.off()
+          }
+  
+  
+```
+
+
+#Plot DAM signature
+```{r}
+DAM <- DotPlot(mglia, features = c("CX3CR1", "P2RY12", "TMEM119", "TYROBP", "CTSB", "CTSD", "APOE", "B2M", "FTH","TREM2", "AXL", "CST7", "CTSL", "LPL", "CD9", "CSF1", "ITGAX", "CLEC7A", "LILRB4", "TIMP2")) + theme(axis.text.x = element_text(angle = 90))
+#Homeostatic markers:
+#VlnPlot(mglia, features = c("HEXB", "CST3", "CX3CR1", "CTSD", "CSF1R", "CTSS", "SPARC", "TMSB4X", "P2RY12", "C1QUA", "C1QB"))
+
+#Stage 1 DAM:
+#VlnPlot(mglia, features = c("CX3CR1", "P2RY12", "TMEM119", "TYROBP", "CTSB", "CTSD", "APOE", "B2M", "FTH", "LYZ2")
+
+#Stage 2 DAM:VlnPlot(mglia, features = c("TREM2", "AXL", "CST7", "CTSL", "LPL", "CD9", "CSF1", "CCL6", "IGTAX", "CLEC7A", "LILRB4", "TIMP2"),split.by = "donor_status", pt.size = 0)
+
+pdf(here("paperplots","20220825_DAM_dotplot.pdf"), width = 8.5, height = 5)
+print(DAM)
+dev.off()
+
+```
+
+
+###Chapter 5###
+
+#plot 18 shared "chaperone-mediated protein folding" genes
+```{r}
+int_genes <- c("HSPA1B","HSPA1A", "BAG3", "HSPA9", "HSPA4", "ST13", "HSPA4L", "HSPH1", "CHORDC1", "PTGES3", "PPID", "HSPB1","DNAJB1","DNAJB6","DNAJA1", "HSPD1", "CCT3", "CCT4")
+p1 <- DotPlot(oligos, features = int_genes, col.min = 0) + RotatedAxis()
+p2 <- DotPlot(astros, features = int_genes, col.min = 0) + RotatedAxis()
+p3 <- DotPlot(mglia, features = int_genes, col.min = 0) + RotatedAxis()
+
+rm(PlotList)
+PlotList<- list()
+PlotList[[1]] <- p1
+PlotList[[2]] <- p2
+PlotList[[3]] <- p3
+
+pdf(here("thesisplots","20221009_dotplot_tvp_18shared.pdf"), width = 11, height = 5)
+print(PlotList)
+dev.off()
+
+
+```
+
+###Chapter 6###
+
+#oligodendrocyte Vln plots of PDE1A
+```{r}
+OLs <- subset(oligos, idents = c("Oligo_Cedar", "Oligo_Rowan", "Oligo_Ash", "Oligo_Birch", "Oligo_Maple", "Oligo_Elder", "Oligo_Oak"))
+
+p5 <- VlnPlot(OLs, feature = "PDE1A", group.by = "ol_clusters_named",split.by = "regionCondition", pt.size = 0, cols = (brewer.pal(12,"Paired")))
+
+p6 <- VlnPlot(oligos, feature = "PDE1A", group.by = "ol_clusters_named",split.by = "donor_status", pt.size = 0, cols = mycoloursP[55:56])
+
+p7 <- VlnPlot(OLs, feature = "PDE1A", group.by = "ol_clusters_named",split.by = "donor_status", pt.size = 0, cols = mycoloursP[55:56])
+
+p8 <- VlnPlot(OLs, feature = "PDE1A", group.by = "Tissue",split.by = "donor_status", pt.size = 0, cols = mycoloursP[55:56])
+
+rm(PlotList)
+PlotList<- list()
+PlotList[[1]]<-p7
+PlotList[[2]]<-p8
+PlotList[[3]]<-p5
+
+pdf(here("PhD","Thesis","thesisplots","20221018_PDE1A_violins_OLswCB.pdf"), width = 10, height = 3)
+print(PlotList)
+dev.off()
+```

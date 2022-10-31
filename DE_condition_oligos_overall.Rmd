@@ -1,0 +1,313 @@
+---
+title: "DGE by condition within oligodendroglia clusters - forebrain tissues combined"
+author: "Luise A. Seeker/Sunniva Bostrand"
+date: "05/11/2021"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+    toc_depth: 4
+    theme: united
+---
+
+# Load libraries
+```{r}
+library(Seurat)
+library(here)
+library(ggsci)
+library(dplyr)
+library(viridis)
+```
+
+```{r, echo = F}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7)
+```
+
+```{r}
+Oligos <- readRDS("/exports/eddie/scratch/s1359339/HD/20211005_swapped_data/20211005_Oligos_qc_integrated_annot_swappedsamples.rds")
+Oligos <-Oligos[,Oligos$Tissue != "CB"]
+```
+
+```{r}
+seur_comb <- readRDS("/exports/eddie/scratch/s1359339/HD/20210424_Integrated_nodubs_annotated_fulldata/20210424_seur_comb_CCAintbatch_nodubs_qcd_annotated_update.RDS")
+seur_comb$clusters_named <- Idents(seur_comb)
+```
+
+
+# Perform differential gene expression without splitting by tissue
+
+```{r}
+# create folder where to save data
+dir.create(here("outs"))
+dir.create(here("outs", "DGE_condition"))
+dir.create(here("outs", "DGE_condition","within_cluster"))
+dir.create(here("outs", "DGE_condition", "within_cluster", "condition"))
+Idents(Oligos) <- "ol_clusters_named"
+cluster_lev <- levels(Oligos@meta.data$ol_clusters_named)
+for(i in 1 : length(cluster_lev)){
+  clu_dat <- subset(Oligos, ident = cluster_lev[i])
+  Idents(clu_dat) <- "donor_status"
+  mark_condition <- FindAllMarkers(clu_dat, 
+                         only.pos = F, 
+                         min.pct = 0.25, 
+                         logfc.threshold = 0.25, 
+                         test.use = "MAST")
+  save_name_condition <- paste(cluster_lev[i], "condition_mark.csv", sep = "_")
+  write.csv(mark_condition, here("outs", "DGE_condition", "within_cluster", 
+                               "condition", save_name_condition))
+}
+```
+
+
+#crashes here - look into
+Read in data for plotting differentially expressed genes
+```{r}
+# define function
+gen_mark_list <-function(file_dir = getwd(),
+                         avg_log = 1.2,
+                         pct_1 = 0.25,
+                         pct_2 = 0.6,
+                         p_adj = 0.05,
+                         pairwise = FALSE
+){
+  temp = list.files(path = file_dir,
+                    pattern="*.csv")
+  myfiles = lapply(paste(file_dir, temp, sep = "/"), read.csv)
+  
+  for(i in 1:length(myfiles)){
+    dat <- myfiles[[i]]
+    av_log_fil <- subset(dat, abs(dat$avg_log2FC) > avg_log & 
+                           dat$pct.1 > pct_1 & 
+                           dat$pct.2 < pct_2 & 
+                           dat$p_val_adj < p_adj) 
+    if(pairwise == TRUE){
+      top10 <- av_log_fil %>% top_n(10, avg_log2FC)
+      top10$gene <- top10$X
+      ol_clu <- strsplit(temp[i], "_condition_mark.")[[1]][1]
+      top10$ol_clu <- ol_clu
+    }else{
+      av_log_fil$cluster <- as.character(av_log_fil$cluster)
+      fil <- av_log_fil %>% group_by(cluster)
+      ol_clu <- strsplit(temp[i], "_condition_mark.")[[1]][1]
+      fil$ol_clu <- ol_clu
+    }
+    
+    if(i == 1){
+      fil_genes <- fil
+    }else{
+      fil_genes <- rbind(fil_genes, fil)
+    }
+    
+    fil_genes <- fil_genes[fil_genes$cluster == "HD",]
+    
+  }
+  
+  return(fil_genes)
+}
+
+# use function
+fil_genes_condition <- gen_mark_list(file_dir = here("outs", "DGE_condition", "within_cluster", "condition"),
+                           avg_log = 0.6,
+                           pct_1 = 0.25,
+                           pct_2 = 0.6,
+                           p_adj = 0.05)
+fil_genes <-  fil_genes_condition
+# a lot of the differentially expressed genes are in COPS. However, I noticed
+# that the adjusted p-value forost of them are 1 so I would like to filter based on that 
+
+int_genes <- unique(fil_genes$gene)
+write.csv(fil_genes, file = "/exports/eddie/scratch/s1359339/HD/pval_filtered_DEgenes_0.6.csv")
+```
+
+```{r, fig.width = 6, fig.height = 15}
+Idents(Oligos) <- "donor_status"
+cluster_averages <- AverageExpression(Oligos, group.by = "donor_status",
+                                      return.seurat = TRUE)
+cluster_averages@meta.data$condition_gr <- levels(as.factor(Oligos@meta.data$donor_status)) 
+##works until here                                             
+hm_av <- DoHeatmap(object = cluster_averages, 
+          features = int_genes, 
+          label = TRUE,
+          group.by = "condition_gr",
+          group.colors = mycoloursP[6:40],
+          draw.lines = F) + scale_fill_viridis()
+hm_av
+```
+
+```{r, fig.width=15, fig.height = 5}
+all_genes <- rownames(Oligos)
+Oligos <- ScaleData(Oligos, features= all_genes)
+hm <- DoHeatmap(object = Oligos, features= int_genes, 
+          label = TRUE, 
+group.colors = mycoloursP[6:40],
+          group.by = 'donor_status') + scale_fill_viridis()
+pdf("/exports/eddie/scratch/s1359339/HD/outs/DGE_condition/DE_condition_genes_vis/heatmap_oneCOP.pdf",
+paper="a4", width=8, height=11.5)
+print(hm)
+dev.off()
+hm
+```
+
+
+```{r, fig.width=20, fig.height = 4}
+Idents(Oligos) <- "ol_clusters_named"
+dp <- DotPlot(Oligos, group.by = "donor_status", features = int_genes, cols = c("blue", "red")) + RotatedAxis()
+pdf("/exports/eddie/scratch/s1359339/HD/outs/DGE_condition/DE_condition_genes_vis/dotplot_oneCOP.pdf",
+paper="a4", width=8, height=11.5)
+print(dp)
+dev.off()
+```
+
+
+# save VlnPlots
+
+
+```{r}
+save_vln_plots <- function(seur_obj,
+                           marker_list,
+                           save_dir = getwd(),
+                           numb_genes = 10,
+                           plotheight = 20,
+                           plotwidth = 8,
+                           group_by = Idents(seur_obj),
+                           split_by = NULL,
+                           pt_size = 0.1,
+                           n_col = 1){
+  gene_groups <- split(marker_list, 
+                       ceiling(seq_along(marker_list) / numb_genes))
+    
+    for(i in 1:length(gene_groups)){
+        
+          pdf(paste(save_dir, "/clust_marker_vln_", i, ".pdf", sep=""), 
+              height=plotheight, width = plotwidth)
+          finalPlot<-VlnPlot(seur_obj, features = unlist(gene_groups[i]),
+                             group.by = group_by, split.by = split_by,
+                             pt.size= pt_size, ncol=1)
+          print(finalPlot)
+          graphics.off()
+          
+        }
+      }
+      
+dir.create(here("outs", "DGE_condition", "DE_condition_genes_vis", "vln", "dots"), 
+           recursive = TRUE)    
+save_vln_plots(seur_obj= Oligos, 
+               marker_list = int_genes,
+               save_dir = here("outs", "DGE_condition", "DE_condition_genes_vis", "vln", "dots"),
+               split_by = "donor_status",
+               group_by = "ol_clusters_named")
+dir.create(here("outs", "DGE_condition", "DE_condition_genes_vis", "vln", "no_dots"))
+save_vln_plots(seur_obj= Oligos, 
+               marker_list = int_genes,
+               save_dir = here("outs", "DGE_condition", "DE_condition_genes_vis", 
+                               "vln", "no_dots"),
+               split_by = "donor_status",
+               group_by = "ol_clusters_named",
+               pt_size = 0,
+               plotheight = 30)
+dir.create(here("outs", "DGE_condition", "DE_condition_genes_vis", "vln", 
+                "all_cell_types"))
+save_vln_plots(seur_obj= seur_comb, 
+               marker_list = int_genes,
+               save_dir = here("outs", "DGE_condition", "DE_condition_genes_vis", 
+                               "vln", "all_cell_types"),
+               split_by = "donor_status",
+               group_by = "clusters_named",
+               pt_size = 0,
+               plotheight = 30)
+               
+               
+```
+
+
+# save FeaturePlots
+
+
+```{r}
+save_feat_plots <- function(seur_obj,
+                           marker_list,
+                           save_dir = getwd(),
+                           numb_genes = 16,
+                           plotheight = 18,
+                           plotwidth = 20,
+                           split_by = "NULL",
+                           n_col = 4){
+  gene_groups <- split(marker_list, 
+                       ceiling(seq_along(marker_list) / numb_genes))
+    
+    for(i in 1:length(gene_groups)){
+      if(split_by != "NULL"){
+        feature_plot<-FeaturePlot(seur_obj, 
+                                    features = unlist(gene_groups[i]),
+                                    ncol = n_col, split.by = split_by)
+      }else{
+        feature_plot<-FeaturePlot(seur_obj, 
+                                    features = unlist(gene_groups[i]),
+                                    ncol = n_col)
+      }
+        
+          pdf(paste(save_dir, "/clust_marker_feat_", i, ".pdf", sep=""), 
+              height=plotheight, width = plotwidth)
+          
+          print(feature_plot)
+          
+          graphics.off()
+          
+        }
+}
+dir.create(here("outs", "DGE_condition", "DE_condition_genes_vis", "feature_pl_ol"))
+      
+     
+save_feat_plots(seur_obj= Oligos, 
+               marker_list = int_genes,
+               split_by = "donor_status",
+               numb_genes = 10,
+               plotheight = 30,
+               save_dir = here("outs", "DGE_condition", "DE_condition_genes_vis", "feature_pl_ol"))
+dir.create(here("outs", "DGE_condition", "DE_condition_genes_vis", "feature_pl_all_cell_types"))
+save_feat_plots(seur_obj= seur_comb, 
+               marker_list = int_genes,
+               split_by = "donor_status",
+               numb_genes = 10,
+               plotheight = 30,
+               save_dir = here("outs", "DGE_condition", "DE_condition_genes_vis",
+                               "feature_pl_all_cell_types"))
+               
+               
+```
+
+```{r}
+y_linked <- c("ASMTY", "TSPY", "IL3RAY", "SRY", "TDF", "ZFY",
+              "PRKY", "AMGL", "ANT3Y", "AZF2", "BPY2", "AZF1",
+              "DAZ", "RBM1", "RBM2", "UTY", "USP9Y", "AMELY")
+fil_y_bool<- y_linked %in% rownames(Oligos)
+fil_y_linked <- y_linked[fil_y_bool]
+# "PRKY is not expressed and causes problems in the FeaturePlots
+# (but nor Vln Plot)
+fil_y_linked <- fil_y_linked[c(1, 3, 4)]
+dir.create(here("outs", "DGE_condition", "DE_condition_genes_vis", "y_linked"))
+      
+     
+save_feat_plots(seur_obj= Oligos, 
+               marker_list = fil_y_linked,
+               split_by = "donor_status",
+               numb_genes = length(fil_y_linked),
+               plotheight = 9,
+               save_dir = here("outs", "DGE_condition", "DE_condition_genes_vis", 
+                               "y_linked"))
+```
+
+
+
+
+```{r}
+sessionInfo()
+```

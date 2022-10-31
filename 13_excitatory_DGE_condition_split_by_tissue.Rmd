@@ -1,0 +1,367 @@
+---
+title: "DGE by condition within clusters - EN subclusters"
+author: "Luise A. Seeker/Sunniva Bostrand"
+date: "16/23/2021"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+    toc_depth: 4
+    theme: united
+---
+
+# Load libraries
+```{r}
+setwd("/exports/eddie/scratch/s1359339/HD/20211005_swapped_data")
+library(Seurat)
+library(here)
+library(ggsci)
+library(dplyr)
+library(viridis)
+library(ggplot2)
+```
+
+```{r, echo = F}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7)
+```
+
+```{r}
+ENs <- readRDS(here("ENs_out/20211201_ENs.rds"))
+DefaultAssay(ENs) <- "RNA"
+seur_comb <- readRDS("/exports/eddie/scratch/s1359339/HD/swapped/20211005_seur_comb_qc_integrated_annot_swappedsamples.rds")
+DefaultAssay(seur_comb) <- "RNA"
+```
+
+# Perform differential gene expression with condition separately for each cluster
+
+```{r}
+# create folder where to save data
+dir.create(here("ENs_out"))
+dir.create(here("ENs_out", "DGE_condition_tissue_split"))
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "within_cluster"))
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition"))
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "CN"))
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "HC"))
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "FrCx"))
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "CB"))
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis"))
+
+Idents(ENs) <- "en_clusters_named"
+#need to do this separately for each tissue since the neurons are very regionally specific
+tissue_list <- "CB"
+cluster_lev <- c("Granule_1", "Granule_2", "Granule_3")
+for (i in 1:length(tissue_list)){
+  srt <- subset(ENs, Tissue == tissue_list[i])
+for(j in 1 : length(cluster_lev)){
+  clu_dat <- subset(srt, ident = cluster_lev[j])
+  Idents(clu_dat) <- "donor_status"
+  mark_condition <- FindAllMarkers(clu_dat, 
+                         only.pos = F, 
+                         min.pct = 0.25, 
+                         logfc.threshold = 0.25, 
+                         test.use = "MAST")
+  save_name_condition <- paste(tissue_list[i], cluster_lev[j],"condition_mark.csv", sep = "_")
+  write.csv(mark_condition, here("ENs_out", "DGE_condition_tissue_split", "within_cluster", 
+                               "condition", tissue_list[i], save_name_condition))
+}
+}
+
+tissue_list <- "CN"
+cluster_lev <- c("Ex_4", "Ex_3", "Ex_1_cx", "Ex_6_cx")
+for (i in 1:length(tissue_list)){
+  srt <- subset(ENs, Tissue == tissue_list[i])
+for(j in 1 : length(cluster_lev)){
+  clu_dat <- subset(srt, ident = cluster_lev[j])
+  Idents(clu_dat) <- "donor_status"
+  mark_condition <- FindAllMarkers(clu_dat, 
+                         only.pos = F, 
+                         min.pct = 0.25, 
+                         logfc.threshold = 0.25, 
+                         test.use = "MAST")
+  save_name_condition <- paste(tissue_list[i], cluster_lev[j],"condition_mark.csv", sep = "_")
+  write.csv(mark_condition, here("ENs_out", "DGE_condition_tissue_split", "within_cluster", 
+                               "condition", tissue_list[i], save_name_condition))
+
+}
+}
+
+tissue_list <- "FrCx"
+cluster_lev <- c("Ex_1_cx", "Ex_2_cx", "Ex_7_cx", "Ex_6_cx", "Ex_5_cx", "Ex_8_cx")
+for (i in 1:length(tissue_list)){
+  srt <- subset(ENs, Tissue == tissue_list[i])
+for(j in 1 : length(cluster_lev)){
+  clu_dat <- subset(srt, ident = cluster_lev[j])
+  Idents(clu_dat) <- "donor_status"
+  mark_condition <- FindAllMarkers(clu_dat, 
+                         only.pos = F, 
+                         min.pct = 0.25, 
+                         logfc.threshold = 0.25, 
+                         test.use = "MAST")
+  save_name_condition <- paste(tissue_list[i], cluster_lev[j],"condition_mark.csv", sep = "_")
+  write.csv(mark_condition, here("ENs_out", "DGE_condition_tissue_split", "within_cluster", 
+                               "condition", tissue_list[i], save_name_condition))
+}
+}
+
+tissue_list <- "HC"
+cluster_lev <- c("Ex_1_cx", "Ex_2_cx", "Ex_7_cx", "Ex_6_cx", "Ex_5_cx", "Ex_8_cx", "Ex_9_hc", "Ex_3", "Ex_4")
+for (i in 1:length(tissue_list)){
+  srt <- subset(ENs, Tissue == tissue_list[i])
+for(j in 1 : length(cluster_lev)){
+  clu_dat <- subset(srt, ident = cluster_lev[j])
+  Idents(clu_dat) <- "donor_status"
+  mark_condition <- FindAllMarkers(clu_dat, 
+                         only.pos = F, 
+                         min.pct = 0.25, 
+                         logfc.threshold = 0.25, 
+                         test.use = "MAST")
+  save_name_condition <- paste(tissue_list[i], cluster_lev[j],"condition_mark.csv", sep = "_")
+  write.csv(mark_condition, here("ENs_out", "DGE_condition_tissue_split", "within_cluster", 
+                               "condition", tissue_list[i], save_name_condition))
+}
+}
+```
+#Read in data for plotting differentially expressed genes
+```{r}
+# define function
+gen_mark_list <-function(file_dir = getwd(),
+                         avg_log = 1.2,
+                         pct_1 = 0.25,
+                         pct_2 = 0.6,
+                         p_adj = 0.05,
+                         pairwise = FALSE
+){
+  temp = list.files(path = file_dir,
+                    pattern="*.csv")
+  myfiles = lapply(paste(file_dir, temp, sep = "/"), read.csv)
+  
+  for(i in 1:length(myfiles)){
+    dat <- myfiles[[i]]
+    av_log_fil <- subset(dat, abs(dat$avg_log2FC) > avg_log & 
+                           dat$pct.1 > pct_1 & 
+                           dat$pct.2 < pct_2 & 
+                           dat$p_val_adj < p_adj) 
+    if(pairwise == TRUE){
+      top10 <- av_log_fil %>% top_n(10, avg_log2FC)
+      top10$gene <- top10$X
+      en_clu <- strsplit(temp[i], "_condition_mark.")[[1]][1]
+      top10$en_clu <- en_clu
+    }else{
+      av_log_fil$cluster <- as.character(av_log_fil$cluster)
+      fil <- av_log_fil %>% group_by(cluster)
+      en_clu <- strsplit(temp[i], "_condition_mark.")[[1]][1]
+      fil$en_clu <- en_clu
+    }
+    
+    if(i == 1){
+      fil_genes <- fil
+    }else{
+      fil_genes <- rbind(fil_genes, fil)
+    }
+    
+    fil_genes <- fil_genes[fil_genes$cluster == "HD",]
+    
+  }
+  
+  return(fil_genes)
+}
+# use function
+fil_genes_CN <- gen_mark_list(file_dir = here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "CN"),
+                           avg_log = 0.8,
+                           pct_1 = 0.25,
+                           pct_2 = 0.6,
+                           p_adj = 0.05,)
+write.csv(fil_genes_CN, file = here("ENs_out","DGE_condition_tissue_split", "within_cluster", "condition", "DE_condition_ENs_CN.csv"))  
+
+fil_genes_HC <- gen_mark_list(file_dir = here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "HC"),
+                           avg_log = 0.8,
+                           pct_1 = 0.25,
+                           pct_2 = 0.6,
+                           p_adj = 0.05,)
+write.csv(fil_genes_HC, file = here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "DE_condition_ENs_HC.csv")) 
+
+fil_genes_FrCx <- gen_mark_list(file_dir = here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "FrCx"),
+                           avg_log = 0.8,
+                           pct_1 = 0.25,
+                           pct_2 = 0.6,
+                           p_adj = 0.05,)
+write.csv(fil_genes_FrCx, file = here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "DE_condition_ENs_FrCx.csv"))
+
+fil_genes_CB <- gen_mark_list(file_dir = here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "CB"),
+                           avg_log = 0.8,
+                           pct_1 = 0.25,
+                           pct_2 = 0.6,
+                           p_adj = 0.05,)
+write.csv(fil_genes_CB, file = here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "DE_condition_ENs_CB.csv"))
+
+
+fil_genes <-  rbind(fil_genes_CN, fil_genes_HC, fil_genes_FrCx, fil_genes_CB)
+write.csv(fil_genes, file = here("ENs_out", "DGE_condition_tissue_split", "within_cluster", "condition", "ENs_condition_DEGs.csv"))
+int_genes <- unique(fil_genes$gene)
+
+
+
+```
+
+```{r r, fig.width=15, fig.height = 8}
+ggplot(fil_genes, aes(en_clu, avg_log2FC, colour = p_val_adj)) + geom_point() + theme_classic() + 
+  geom_hline(yintercept = 0, linetype = "dashed") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+CN <- ggplot(fil_genes_CN, aes(en_clu, avg_log2FC, colour =  p_val_adj)) + geom_point() + theme_classic() + 
+  geom_hline(yintercept = 0, linetype = "dashed")+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+HC <- ggplot(fil_genes_HC, aes(en_clu, avg_log2FC, colour =  p_val_adj)) + geom_point() + theme_classic() + 
+  geom_hline(yintercept = 0, linetype = "dashed")+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+FrCx <- ggplot(fil_genes_FrCx, aes(en_clu, avg_log2FC, colour =  p_val_adj)) + geom_point() + theme_classic() + 
+  geom_hline(yintercept = 0, linetype = "dashed")+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+CB <- ggplot(fil_genes_CB, aes(en_clu, avg_log2FC, colour =  p_val_adj)) + geom_point() + theme_classic() + 
+geom_hline(yintercept = 0, linetype = "dashed")+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+CN + HC + FrCx + CB
+
+```
+
+```{r, fig.width=15, fig.height = 5}
+all_genes <- rownames(ENs)
+ENs <- ScaleData(ENs, features= all_genes)
+hm <- DoHeatmap(object = ENs, features= int_genes, 
+          label = TRUE, 
+group.colors = mycoloursP[6:40],
+          group.by = 'donor_status') + scale_fill_viridis()
+pdf(here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", "heatmap.pdf"),
+paper="a4", width=8, height=11.5)
+print(hm)
+dev.off()
+hm
+```
+
+
+
+# save VlnPlots
+
+
+```{r}
+save_vln_plots <- function(seur_obj,
+                           marker_list,
+                           save_dir = getwd(),
+                           numb_genes = 10,
+                           plotheight = 20,
+                           plotwidth = 8,
+                           group_by = Idents(seur_obj),
+                           split_by = NULL,
+                           pt_size = 0.1,
+                           n_col = 1){
+  gene_groups <- split(marker_list, 
+                       ceiling(seq_along(marker_list) / numb_genes))
+    
+    for(i in 1:length(gene_groups)){
+        
+          pdf(paste(save_dir, "/clust_marker_vln_", i, ".pdf", sep=""), 
+              height=plotheight, width = plotwidth)
+          finalPlot<-VlnPlot(seur_obj, features = unlist(gene_groups[i]),
+                             group.by = group_by, split.by = split_by,
+                             pt.size= pt_size, ncol=1)
+          print(finalPlot)
+          graphics.off()
+          
+        }
+      }
+      
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", "vln", "dots"), 
+           recursive = TRUE)    
+save_vln_plots(seur_obj= ENs, 
+               marker_list = int_genes,
+               save_dir = here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", "vln", "dots"),
+               split_by = "donor_status",
+               group_by = "en_clusters_named")
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", "vln", "no_dots"))
+save_vln_plots(seur_obj= ENs, 
+               marker_list = int_genes,
+               save_dir = here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", 
+                               "vln", "no_dots"),
+               split_by = "donor_status",
+               group_by = "en_clusters_named",
+               pt_size = 0,
+               plotheight = 30)
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", "vln", 
+                "all_cell_types"))
+save_vln_plots(seur_obj= seur_comb, 
+               marker_list = int_genes,
+               save_dir = here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", 
+                               "vln", "all_cell_types"),
+               split_by = "donor_status",
+               group_by = "clusters_named",
+               pt_size = 0,
+               plotheight = 30)
+               
+               
+```
+
+
+# save FeaturePlots
+
+
+```{r}
+save_feat_plots <- function(seur_obj,
+                           marker_list,
+                           save_dir = getwd(),
+                           numb_genes = 16,
+                           plotheight = 18,
+                           plotwidth = 20,
+                           split_by = "NULL",
+                           n_col = 4){
+  gene_groups <- split(marker_list, 
+                       ceiling(seq_along(marker_list) / numb_genes))
+    
+    for(i in 1:length(gene_groups)){
+      if(split_by != "NULL"){
+        feature_plot<-FeaturePlot(seur_obj, 
+                                    features = unlist(gene_groups[i]),
+                                    ncol = n_col, split.by = split_by)
+      }else{
+        feature_plot<-FeaturePlot(seur_obj, 
+                                    features = unlist(gene_groups[i]),
+                                    ncol = n_col)
+      }
+        
+          pdf(paste(save_dir, "/clust_marker_feat_", i, ".pdf", sep=""), 
+              height=plotheight, width = plotwidth)
+          
+          print(feature_plot)
+          
+          graphics.off()
+          
+        }
+}
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", "feature_pl_ol"))
+      
+     
+save_feat_plots(seur_obj= ENs, 
+               marker_list = int_genes,
+               split_by = "donor_status",
+               numb_genes = 10,
+               plotheight = 30,
+               save_dir = here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", "feature_pl_ol"))
+dir.create(here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis", "feature_pl_all_cell_types"))
+save_feat_plots(seur_obj= seur_comb, 
+               marker_list = int_genes,
+               split_by = "donor_status",
+               numb_genes = 10,
+               plotheight = 30,
+               save_dir = here("ENs_out", "DGE_condition_tissue_split", "DE_genes_vis",
+                               "feature_pl_all_cell_types"))
+               
+               
+```
+
+
+```{r}
+sessionInfo()
+```

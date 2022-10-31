@@ -1,0 +1,164 @@
+---
+title: "Validation of MBP/PDE1A RNAscope"
+author: "Sunniva Bostrand"
+date: '2022-10-17'
+output: html_document
+---
+
+```{r}
+#Quantification analysis for RNAscope measurements 
+setwd("M:/PhD/")
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(stats)
+library(here)
+library(RColorBrewer)
+```
+
+```{r}
+#Read in
+dat <- read.csv("M:/PhD/Year 4/Validation/ISH/PDE1A_MBP/ISH_MBP_PDE1A_quant.csv")
+
+#select detected cells only
+dat <- subset(dat, dat$Name =="PathCellObject")
+
+#select only the columns of interest
+t <- select(dat, ï..Image, Parent, Subcellular..Channel.2..Num.spots.estimated, Subcellular..Channel.3..Num.spots.estimated )
+
+#rename columns
+colnames(t) [colnames(t)== "Subcellular..Channel.2..Num.spots.estimated"] <- "PDE1A_dots"
+colnames(t) [colnames(t)== "Subcellular..Channel.3..Num.spots.estimated"] <- "MBP_dots"
+t$MBP_dots <- as.numeric(t$MBP_dots)
+t$PDE1A_dots <- as.numeric(t$PDE1A_dots)
+
+#add ID column and region
+for(i in 1:length(t$ï..Image)){
+t$ID[i] <- strsplit(t$ï..Image, "_")[[i]][1]
+t$region[i] <- strsplit(t$ï..Image, "_")[[i]][2]
+}
+
+#add tissue column
+t$tissue <- ifelse(t$Parent == "GM1" | t$Parent == "GM2" | t$Parent == "GM3"| t$Parent == "GM4", "GM", "WM")
+
+#number ROIs
+t[,"ROI"] <- NA
+t[t$Parent == "GM1", "ROI"] <- "1"
+t[t$Parent == "GM2", "ROI"] <- "2"
+t[t$Parent == "GM3", "ROI"] <- "3"
+t[t$Parent == "GM4", "ROI"] <- "4"
+t[t$Parent == "WM1", "ROI"] <- "5"
+t[t$Parent == "WM2", "ROI"] <- "6"
+t[t$Parent == "WM3", "ROI"] <- "7"
+t[t$Parent == "WM4", "ROI"] <- "8"
+
+#select columns again
+t<- select(t, ID, tissue, region, ROI, PDE1A_dots, MBP_dots)
+
+#save the reduced dataset
+write.csv(t, file = "M:/PhD/Year 4/Validation/ISH/PDE1A_MBP/ISH_PDE1A_MBP_df.csv")
+```
+
+
+#alternatively start from here
+```{r}
+t <- read.csv("M:/PhD/Year 4/Validation/ISH/PDE1A_MBP/ISH_PDE1A_MBP_df.csv")
+#Assign unique ID for each FOV - check that this works properly 
+split <- split(t, t$ID)
+for (i in 1:length(names(split))) {
+  temp <-split[[i]]
+  temp$FOV <- paste(names(split)[i], temp$ROI)
+  if(i == 1){
+    t <- temp
+  }else{
+    t <- rbind(temp, t)}
+}
+
+#Add area for calculating density
+t$ROI_a_um2 <- "250000"
+
+#Add disease status
+t$Condition <- ifelse(t$ID == "1" | t$ID == "2" | t$ID == "3" | t$ID == "4" |t$ID == "7" |t$ID == "8" | t$ID == "13",  "HD", "Ctrl")
+
+#add logical columns 
+t<- mutate(t, MBP = t$MBP_dots >=1)
+t<- mutate(t, PDE1A = t$PDE1A_dots >=1)
+t<- mutate(t, dPos= t$PDE1A == TRUE & t$MBP == TRUE)
+
+#sum up positive/double positive cells per FOV
+MBP <- t %>% group_by(FOV) %>%
+summarise(tot_MBP = sum(MBP)) 
+ PDE1A <- t %>% group_by(FOV) %>% summarise(tot_PDE1A = sum(PDE1A)) 
+dPos <-  t %>% group_by(FOV) %>%
+  summarise(tot_dPos = sum(dPos)) 
+
+#create df with counts per FOV
+df<- merge(PDE1A, MBP, by = "FOV", all = TRUE)        
+df<- merge(df,dPos, by = "FOV", all = TRUE) 
+t2 <- merge(df, t, by = "FOV", all = TRUE)
+t2<- t2[!duplicated(t2$FOV),]
+
+
+#express double pos as proportion of MBP-pos
+t2$prop_dPos <- t2$tot_dPos/t2$tot_MBP
+```
+
+
+###analysis
+```{r}
+shapiro.test(t2$prop_dPos) 
+
+#data is not normal and there is no non-parametric 2-way ANOVA, so we look separately at our two variables and use FDR correction
+
+#to just look at effect of one variable at a time
+MU_cond <- wilcox.test(prop_dPos ~ Condition, data = t2)
+MU_cond
+#W = 1183, p-value = 0.007748
+MU_cond$p.adj <- p.adjust(MU_cond$p.value, "hochberg", n = 2)
+MU_cond$p.adj
+#0.01549658
+
+
+MU_tis <- wilcox.test(prop_dPos ~ tissue, data = t2)
+MU_tis
+#W = 1119, p-value = 0.143
+MU_tis$p.adj <- p.adjust(MU_tis$p.value, "hochberg", n = 2)
+MU_tis$p.adj #0.286085
+
+```
+
+#plot and save
+```{r}
+
+t2$Myelinated <- ifelse(t2$tissue == "WM", t2$Myelinated <- "Y", "N")
+
+
+p2 <- ggplot(t2, aes(x = Condition, y = prop_dPos, fill = Condition)) +
+  geom_boxplot()+ geom_jitter(position=position_dodge(width=0.75)) +
+  theme_classic() + ylab("Proportion of MBP+ cells also +ive for PDE1A") + xlab("Condition") + 
+  scale_fill_manual(values = (brewer.pal(10,"Paired")[3:4])) + theme(axis.text = element_text(size = 20))  +
+  theme(axis.title = element_text(size = 25))  + theme(legend.text = element_text(size = 20))  + theme(legend.title = element_text(size = 20)) + ylim(0,1)
+
+
+
+p3 <- ggplot(t2, aes(x = Myelinated, y = prop_dPos, fill = Myelinated)) +
+  geom_boxplot()+ geom_jitter(position=position_dodge(width=0.75)) +
+  theme_classic() + ylab("Proportion of MBP+ cells also +ive for PDE1A") + xlab("Myelinated") + 
+  scale_fill_manual(values = (brewer.pal(13,"Paired")[9:11])) + theme(axis.text = element_text(size = 20))  +
+  theme(axis.title = element_text(size = 25))  + theme(legend.text = element_text(size = 20))  + theme(legend.title = element_text(size = 20)) + ylim(0,1)
+
+
+PlotList<- list()
+PlotList[[1]]<-p2
+PlotList[[2]]<-p3
+
+
+pdf(here("PhD","Thesis","thesisplots","20221017_MBP_PDE1A_RS_boxplots.pdf"), width = 7, height = 9)
+print(PlotList)
+dev.off()
+
+```
+
+```{r}
+sessionInfo()
+```

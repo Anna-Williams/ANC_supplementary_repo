@@ -1,0 +1,87 @@
+---
+title: "CCA batch integration"
+author: "Luise Seeker/Sunniva Bostrand"
+date: "10/05/2021"
+output: html_document
+---
+
+#Script for data integrationg
+
+#load libraries
+```{r}
+library(Seurat)
+library(ggplot2)
+library(ggsci)
+```
+
+# Make colour palette
+```{r}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3<-pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4<-pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4)
+
+```
+# Load data
+
+```{r}
+
+seur_comb <- readRDS("/exports/eddie/scratch/s1359339/HD/04_scran_normalised/combined_Seurat/20210309_seur_combined_rawandnorm.RDS")
+seur_comb <- seur_comb[,seur_comb@meta.data$scDblFinder.class == "singlet"]
+dim(seur_comb) 
+
+ 
+```
+
+
+#Set number of PCs to be used for integration
+```{r}
+dimensions<-1:37
+```
+
+
+
+# integrate by batch
+```{r}
+seur_list<-SplitObject(seur_comb, split.by = "X10X_chip")
+
+for (i in 1:length(seur_list)) {
+  seur_list[[i]] <- NormalizeData(seur_list[[i]], verbose = FALSE)
+  seur_list[[i]] <- FindVariableFeatures(seur_list[[i]], selection.method = "vst", 
+                                             nfeatures = 2000, verbose = FALSE)
+}
+
+mdat<-seur_comb@meta.data
+
+
+ref_levels<-unique(mdat$X10X_chip)
+
+
+seur_reference_list <- seur_list[ref_levels]
+anchors <- FindIntegrationAnchors(object.list = seur_reference_list, dims = dimensions)
+
+
+seur_integrated <- IntegrateData(anchorset = anchors, dims = dimensions)
+
+DefaultAssay(seur_integrated) <- "integrated"
+```
+
+```{r}
+# Run the standard workflow for visualization and clustering
+seur_integrated <- ScaleData(seur_integrated, verbose = FALSE)
+seur_integrated <- RunPCA(seur_integrated, npcs = 50, verbose = FALSE)
+#UMAP and Clustering
+seur_integrated <- RunUMAP(seur_integrated, reduction = "pca", dims = 1:35)
+seur_integrated <- FindNeighbors(seur_integrated, reduction = "pca", dims = 1:35)
+seur_integrated <- FindClusters(seur_integrated, resolution = 0.4)
+
+# Visualization
+DimPlot(seur_integrated, reduction = "umap", cols = mycoloursP)
+DimPlot(seur_integrated, reduction = "umap", group.by = "X10X_chip", cols = mycoloursP)
+
+DimPlot(seur_integrated, reduction = "umap", label = TRUE, cols = mycoloursP)
+
+saveRDS(seur_integrated, "/exports/eddie/scratch/s1359339/HD/05_merged_tissues/CCA_integrated_batch/20210329_seur_batch_CCAintegrated_nodublets.RDS")
+```
