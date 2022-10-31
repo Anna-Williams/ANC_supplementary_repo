@@ -1,0 +1,151 @@
+---
+title: "DGE by condition across oligodendrocyte clusters - separated by region"
+author: "Sunniva Bostrand"
+date: "18/10/2022"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+    toc_depth: 4
+    theme: united
+---
+
+# Load libraries
+```{r}
+setwd("/exports/eddie/scratch/s1359339/HD/06_swapped")
+library(Seurat)
+library(here)
+library(ggsci)
+library(dplyr)
+library(viridis)
+library(ggplot2)
+```
+
+```{r, echo = F}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7)
+```
+
+```{r}
+oligos <- readRDS("/exports/eddie/scratch/s1359339/HD/06_swapped/subclusters/20211005_Oligos_qc_integrated_annot_swappedsamples.rds")
+seur_comb <- readRDS("/exports/eddie/scratch/s1359339/HD/06_swapped/20211005_seur_comb_qc_integrated_annot_swappedsamples.rds")
+```
+
+# Perform differential gene expression with condition separately for each tissue
+
+```{r}
+# create folder where to save data
+
+dir.create(here( "DGE_condition_tissue_split"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition", "CB"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition", "CN"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition", "HC"))
+dir.create(here( "DGE_condition_tissue_split", "across_cluster", "condition", "FrCx"))
+
+Idents(oligos) <- "ol_clusters_named"
+tissue_list <- levels(as.factor(oligos$Tissue))
+OLs <- subset(oligos, idents = c("Oligo_cedar", "Oligo_rowan", "Oligo_ash", "Oligo_birch", "Oligo_maple", "Oligo_elder", "Oligo_oak"))
+
+for (i in 1:length(tissue_list)){
+  clu_dat <- subset(OLs, Tissue == tissue_list[i])
+  Idents(clu_dat) <- "donor_status"
+  mark_condition <- FindAllMarkers(clu_dat,
+                         only.pos = F, 
+                         min.pct = 0.25, 
+                         logfc.threshold = 0.25, 
+                         test.use = "MAST")
+  save_name_condition <- paste(tissue_list[i],"condition_mark.csv", sep = "_")
+  write.csv(mark_condition, here("DGE_condition_tissue_split", "across_cluster", 
+                               "condition", tissue_list[i], save_name_condition))
+}
+```
+
+```{r}
+gen_mark_list <-function(file_dir = getwd(),
+                         avg_log = 1.2,
+                         pct_1 = 0.25,
+                         pct_2 = 0.6,
+                         p_adj = 0.05,
+                         pairwise = FALSE
+){
+  temp = list.files(path = file_dir,
+                    pattern="*.csv")
+  myfiles = lapply(paste(file_dir, temp, sep = "/"), read.csv)
+  
+  for(i in 1:length(myfiles)){
+    dat <- myfiles[[i]]
+    av_log_fil <- subset(dat, abs(dat$avg_log2FC) > avg_log & 
+                           dat$pct.1 > pct_1 & 
+                           dat$pct.2 < pct_2 & 
+                           dat$p_val_adj < p_adj) 
+    if(pairwise == TRUE){
+      top10 <- av_log_fil %>% top_n(10, avg_log2FC)
+      top10$gene <- top10$X
+      ep_clu <- strsplit(temp[i], "_condition_mark.")[[1]][1]
+      top10$ep_clu <- ep_clu
+    }else{
+      av_log_fil$cluster <- as.character(av_log_fil$cluster)
+      fil <- av_log_fil %>% group_by(cluster)
+      ep_clu <- strsplit(temp[i], "_condition_mark.")[[1]][1]
+      fil$ep_clu <- ep_clu
+    }
+    
+    if(i == 1){
+      fil_genes <- fil
+    }else{
+      fil_genes <- rbind(fil_genes, fil)
+    }
+    
+    fil_genes <- fil_genes[fil_genes$cluster == "HD",]
+    
+  }
+  
+  return(fil_genes)
+}
+# use function
+fil_genes_CN <- gen_mark_list(file_dir = here("DGE_condition_tissue_split", "across_cluster", "condition", "CN"),
+                           avg_log = 0.8,
+                           pct_1 = 0.25,
+                           pct_2 = 0.6,
+                           p_adj = 0.05,)
+write.csv(fil_genes_CN, file = here("DGE_condition_tissue_split", "across_cluster", "condition", "DE_condition_allOL_CN.csv"))  
+
+fil_genes_HC <- gen_mark_list(file_dir = here("DGE_condition_tissue_split", "across_cluster", "condition", "HC"),
+                           avg_log = 0.8,
+                           pct_1 = 0.25,
+                           pct_2 = 0.6,
+                           p_adj = 0.05,)
+write.csv(fil_genes_HC, file = here("DGE_condition_tissue_split", "across_cluster", "condition", "DE_condition_allOL_HC.csv")) 
+
+fil_genes_FrCx <- gen_mark_list(file_dir = here("DGE_condition_tissue_split", "across_cluster", "condition", "FrCx"),
+                           avg_log = 0.8,
+                           pct_1 = 0.25,
+                           pct_2 = 0.6,
+                           p_adj = 0.05,)
+write.csv(fil_genes_FrCx, file = here("DGE_condition_tissue_split", "across_cluster", "condition", "DE_condition_allOL_FrCx.csv"))
+
+fil_genes_CB <- gen_mark_list(file_dir = here("DGE_condition_tissue_split", "across_cluster", "condition", "CB"),
+                           avg_log = 0.8,
+                           pct_1 = 0.25,
+                           pct_2 = 0.6,
+                           p_adj = 0.05,)
+write.csv(fil_genes_CB, file = here("DGE_condition_tissue_split", "across_cluster", "condition", "DE_condition_allOL_CB.csv"))
+
+
+fil_genes <-  rbind(fil_genes_CN, fil_genes_HC, fil_genes_FrCx, fil_genes_CB)
+write.csv(fil_genes, file = here("DGE_condition_tissue_split", "across_cluster", "condition", "allOL_condition_DEGs.csv"))
+```
+
+```{r}
+sessionInfo()
+```
+
