@@ -1,0 +1,275 @@
+---
+title: "Rename samples 23 and 24"
+author: "Sunniva Bostrand"
+date: "04/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+At some point in my analysis I discovered that samples 23 and 24 were likely swapped at the nuclear extraction step. 
+Here I swap them back, which involves changing the barcodes and also the annotations from the metadata
+
+```{r}
+library(Seurat)
+library(ggsci)
+library(scales)
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7)
+```
+
+###Whole dataset
+```{r}
+seur_comb <- readRDS("/exports/eddie/scratch/s1359339/HD/20210424_Integrated_nodubs_annotated_fulldata/20210424_seur_comb_CCAintbatch_nodubs_qcd_annotated_update.RDS")
+
+DimPlot(seur_comb, split.by = "Tissue",  cols = mycoloursP) + NoLegend()
+```
+
+```{r, fig.width=12, fig.height=70, fig.fullwidth=TRUE}
+DimPlot(seur_comb, reduction = "umap", split.by = "ProcessNumber", label = FALSE, cols = mycoloursP, ncol = 2) + NoLegend()
+```
+
+```{r}
+#First I change the actual barcodes
+Barcodes <- colnames(seur_comb)
+Barcodes <- sub("HC_14931PJpool05A__HD_23_L-HD240_HC", "CB_14931PJpool04-S__HD_24_NBB16-056 _CB", Barcodes)
+Barcodes <- sub("CB_14931PJpool04-S__HD_24_NBB16-056_CB", "HC_14931PJpool05A__HD_23_L-HD240_HC", Barcodes)
+seur_comb <- RenameCells(object = seur_comb, new.names = Barcodes)
+seur_comb$Barcode <- Barcodes
+
+#Then I change the necessary slots of the meta.data
+
+#Change ProcessNumber
+seur_comb@meta.data <- within(seur_comb@meta.data, ProcessNumber[ProcessNumber =="23" & process_number =="23"] <- "24") #PN = 24, p_n = 23
+seur_comb@meta.data <- within(seur_comb@meta.data, ProcessNumber[ProcessNumber =="24" & process_number =="24"] <- "23") #PN = 23, p_n = 24
+
+#Change process_number
+seur_comb@meta.data <- within(seur_comb@meta.data, process_number[ProcessNumber =="24" & process_number =="23"] <- "24") #both 24
+seur_comb@meta.data <- within(seur_comb@meta.data, process_number[ProcessNumber =="23" & process_number =="24"] <- "23") #both 23
+
+#change tissue_id
+seur_comb@meta.data <- within(seur_comb@meta.data, tissue_id[ProcessNumber =="24" & tissue_id =="HC"] <- "CB") #24 and CB
+seur_comb@meta.data <- within(seur_comb@meta.data, tissue_id[ProcessNumber =="23" & tissue_id =="CB"] <- "HC") #23 and HC
+
+#change Tissue
+seur_comb@meta.data <- within(seur_comb@meta.data, Tissue[ProcessNumber =="24" & tissue_id =="CB"] <- "CB") #both CB
+seur_comb@meta.data <- within(seur_comb@meta.data, Tissue[ProcessNumber =="23" & tissue_id =="HC"] <- "HC") # both HC
+
+
+#Change donor_id
+seur_comb@meta.data <- within(seur_comb@meta.data, donor_id[ProcessNumber =="24" & donor_id =="L-HD240"] <- "NBB16-056")
+seur_comb@meta.data <- within(seur_comb@meta.data, donor_id[ProcessNumber =="23" & donor_id =="NBB16-056"] <- "L-HD240")
+
+#change donor_status
+seur_comb@meta.data <- within(seur_comb@meta.data, donor_status[ProcessNumber =="24" & donor_status =="HD"] <- "Ctrl") #24 and ctrl
+seur_comb@meta.data <- within(seur_comb@meta.data, donor_status[ProcessNumber =="23" & donor_status =="Ctrl"] <- "HD") #23 and HD       
+
+#change pH
+seur_comb@meta.data <- within(seur_comb@meta.data,pH[ProcessNumber =="24" & donor_status == "Ctrl"] <- "6.5") #NAs give me trouble so I use a different parameter
+seur_comb@meta.data <- within(seur_comb@meta.data, pH[ProcessNumber =="23" & pH =="6.5"] <- NA)
+
+#change cause_death
+seur_comb@meta.data <- within(seur_comb@meta.data,cause_death[ProcessNumber =="24" & cause_death =="General decline"] <- "Cancer")
+seur_comb@meta.data <- within(seur_comb@meta.data, cause_death[ProcessNumber =="23" & cause_death =="Cancer"] <- "General decline")
+
+#Change PMI
+seur_comb@meta.data <- within(seur_comb@meta.data,PMI[ProcessNumber =="24" &  PMI =="03:30"] <- "05:50")
+seur_comb@meta.data <- within(seur_comb@meta.data, PMI[ProcessNumber =="23" & PMI =="05:50"] <- "03:30")
+
+#Change age
+seur_comb@meta.data <- within(seur_comb@meta.data,age[ProcessNumber =="24" &  age =="62"] <- "68")
+seur_comb@meta.data <- within(seur_comb@meta.data, age[ProcessNumber =="23" & age =="68"] <- "62")
+
+#Change CAG_rep_al1
+#can I also use this opportunity to get rid of some redundant slots aka PN and Tissue?
+seur_comb@meta.data <- within(seur_comb@meta.data,CAG_rep_al1[ProcessNumber =="24" & CAG_rep_al1  =="20"] <- NA)
+seur_comb@meta.data <- within(seur_comb@meta.data,CAG_rep_al1[ProcessNumber =="23" & age == "62"] <- "20")
+
+#Change CAG_rep_al2
+seur_comb@meta.data <- within(seur_comb@meta.data,CAG_rep_al2[ProcessNumber =="24" &  CAG_rep_al2 =="44"] <- NA)
+seur_comb@meta.data <- within(seur_comb@meta.data,CAG_rep_al2[ProcessNumber =="23" & age == "62"] <- "44")      
+
+#Before I change the last slot uniq_id I want to check that it looks right
+
+tt <- seur_comb[,seur_comb$uniq_id == "HD_23_L-HD240_HC"]
+head(colnames(tt))
+head(tt@meta.data)
+DimPlot(tt, split.by = "donor_status", group.by = "Tissue") #should be Ctrl and CB
+DimPlot(tt, split.by = "CAG_rep_al1", group.by = "PMI") #should be NA and 5:50
+DimPlot(tt, split.by = "CAG_rep_al2", group.by = "cause_death") #should be NA and Cancer
+DimPlot(tt, split.by = "donor_id", group.by = "ProcessNumber") #should be NBB16-056 and 24
+DimPlot(tt, split.by = "age", group.by = "pH") #should be 68 and 6.5
+
+tf <- seur_comb[,seur_comb$uniq_id == "HD_24_NBB16-056 _CB"]
+head(colnames(tf))
+head(tf@meta.data)
+DimPlot(tf, split.by = "donor_status", group.by = "Tissue") #should be HD and HC
+DimPlot(tf, split.by = "CAG_rep_al1", group.by = "PMI") #should be 20 and 3:30 
+DimPlot(tf, split.by = "CAG_rep_al2", group.by = "cause_death") #should be 44 and General decline 
+DimPlot(tf, split.by = "donor_id", group.by = "ProcessNumber") #should be L-HD240 and 23
+DimPlot(tf, split.by = "pH", group.by = "age") #should be NA and 62
+
+#When I'm happy that everything looks right I change uniq_id last
+seur_comb@meta.data <- within(seur_comb@meta.data, uniq_id [uniq_id == "HD_23_L-HD240_HC" & process_number =="24"] <- "HD_24_NBB16-056_CB")
+seur_comb@meta.data <- within(seur_comb@meta.data, uniq_id[uniq_id =="HD_24_NBB16-056 _CB" & process_number =="23"] <- "HD_23_L-HD240_HC")
+
+DimPlot(seur_comb, split.by = "Tissue", cols = mycoloursP) + NoLegend()
+
+#I also use this opportunity to change/add some meta.data slots 
+
+df <- data.frame(genes = rownames(seur_comb))
+df[grep("^MT-", df$genes),]
+mt_genes <- rownames(seur_comb)[grep("^MT-",rownames(seur_comb))]
+C <- GetAssayData(object = seur_comb, slot = "counts")
+percent_mito <- colSums(C[mt_genes,])/Matrix::colSums(C)*100
+seur_comb <- AddMetaData(seur_comb, percent_mito, col.name = "total_percent_mito")
+VlnPlot(seur_comb, features = "total_percent_mito", pt.size = 0, group.by = "Tissue",  cols = mycoloursP) + NoLegend()
+seur_comb$percent.mt <- seur_comb$total_percent_mito
+VlnPlot(seur_comb, features = "percent.mt", pt.size = 0, group.by = "Tissue",  cols = mycoloursP) + NoLegend()
+
+seur_comb@meta.data$process_number = NULL
+seur_comb@meta.data$tissue_id = NULL
+seur_comb@meta.data$total_percent_mito = NULL
+seur_comb$clusters_named <- Idents(seur_comb)
+
+saveRDS(seur_comb, file = "/exports/eddie/scratch/s1359339/HD/20211005_swapped_data/20211005_seur_comb_qc_integrated_annot_swappedsamples.rds")
+
+```
+
+```{r, fig.width=12, fig.height=70, fig.fullwidth=TRUE}
+DimPlot(seur_comb, reduction = "umap", split.by = "ProcessNumber", label = FALSE, cols = mycoloursP, ncol = 2) + NoLegend()
+```
+
+### Then Oligo dataset
+```{r}
+Oligos <- readRDS("/exports/eddie/scratch/s1359339/HD/20210623_Oligos_reintegrated_merged.rds")
+
+DimPlot(Oligos, split.by = "Tissue",  cols = mycoloursP) + NoLegend()
+```
+
+```{r, fig.width=12, fig.height=70, fig.fullwidth=TRUE}
+DimPlot(Oligos, reduction = "umap", split.by = "ProcessNumber", label = FALSE, cols = mycoloursP, ncol = 2) + NoLegend()
+```
+
+```{r}
+
+#First I change the actual barcodes
+Barcodes <- colnames(Oligos)
+Barcodes <- sub("HC_14931PJpool05A__HD_23_L-HD240_HC", "CB_14931PJpool04-S__HD_24_NBB16-056 _CB", Barcodes)
+Barcodes <- sub("CB_14931PJpool04-S__HD_24_NBB16-056_CB", "HC_14931PJpool05A__HD_23_L-HD240_HC", Barcodes)
+Oligos <- RenameCells(object = Oligos, new.names = Barcodes)
+Oligos$Barcode <- Barcodes
+
+#Then I change the necessary slots of the meta.data
+
+#Change ProcessNumber
+Oligos@meta.data <- within(Oligos@meta.data, ProcessNumber[ProcessNumber =="23" & process_number =="23"] <- "24") #PN = 24, p_n = 23
+Oligos@meta.data <- within(Oligos@meta.data, ProcessNumber[ProcessNumber =="24" & process_number =="24"] <- "23") #PN = 23, p_n = 24
+
+#Change process_number
+Oligos@meta.data <- within(Oligos@meta.data, process_number[ProcessNumber =="24" & process_number =="23"] <- "24") #both 24
+Oligos@meta.data <- within(Oligos@meta.data, process_number[ProcessNumber =="23" & process_number =="24"] <- "23") #both 23
+
+#change tissue_id
+Oligos@meta.data <- within(Oligos@meta.data, tissue_id[ProcessNumber =="24" & tissue_id =="HC"] <- "CB") #24 and CB
+Oligos@meta.data <- within(Oligos@meta.data, tissue_id[ProcessNumber =="23" & tissue_id =="CB"] <- "HC") #23 and HC
+
+#change Tissue
+Oligos@meta.data <- within(Oligos@meta.data, Tissue[ProcessNumber =="24" & tissue_id =="CB"] <- "CB") #both CB
+Oligos@meta.data <- within(Oligos@meta.data, Tissue[ProcessNumber =="23" & tissue_id =="HC"] <- "HC") # both HC
+
+
+#Change donor_id
+Oligos@meta.data <- within(Oligos@meta.data, donor_id[ProcessNumber =="24" & donor_id =="L-HD240"] <- "NBB16-056")
+Oligos@meta.data <- within(Oligos@meta.data, donor_id[ProcessNumber =="23" & donor_id =="NBB16-056"] <- "L-HD240")
+
+#change donor_status
+Oligos@meta.data <- within(Oligos@meta.data, donor_status[ProcessNumber =="24" & donor_status =="HD"] <- "Ctrl") #24 and ctrl
+Oligos@meta.data <- within(Oligos@meta.data, donor_status[ProcessNumber =="23" & donor_status =="Ctrl"] <- "HD") #23 and HD       
+
+#change pH
+Oligos@meta.data <- within(Oligos@meta.data,pH[ProcessNumber =="24" & donor_status == "Ctrl"] <- "6.5") #NAs give me trouble so I use a different parameter
+Oligos@meta.data <- within(Oligos@meta.data, pH[ProcessNumber =="23" & pH =="6.5"] <- NA)
+
+#change cause_death
+Oligos@meta.data <- within(Oligos@meta.data,cause_death[ProcessNumber =="24" & cause_death =="General decline"] <- "Cancer")
+Oligos@meta.data <- within(Oligos@meta.data, cause_death[ProcessNumber =="23" & cause_death =="Cancer"] <- "General decline")
+
+#Change PMI
+Oligos@meta.data <- within(Oligos@meta.data,PMI[ProcessNumber =="24" &  PMI =="03:30"] <- "05:50")
+Oligos@meta.data <- within(Oligos@meta.data, PMI[ProcessNumber =="23" & PMI =="05:50"] <- "03:30")
+
+#Change age
+Oligos@meta.data <- within(Oligos@meta.data,age[ProcessNumber =="24" &  age =="62"] <- "68")
+Oligos@meta.data <- within(Oligos@meta.data, age[ProcessNumber =="23" & age =="68"] <- "62")
+
+#Change CAG_rep_al1
+#can I also use this opportunity to get rid of some redundant slots aka PN and Tissue?
+Oligos@meta.data <- within(Oligos@meta.data,CAG_rep_al1[ProcessNumber =="24" & CAG_rep_al1  =="20"] <- NA)
+Oligos@meta.data <- within(Oligos@meta.data,CAG_rep_al1[ProcessNumber =="23" & age == "62"] <- "20")
+
+#Change CAG_rep_al2
+Oligos@meta.data <- within(Oligos@meta.data,CAG_rep_al2[ProcessNumber =="24" &  CAG_rep_al2 =="44"] <- NA)
+Oligos@meta.data <- within(Oligos@meta.data,CAG_rep_al2[ProcessNumber =="23" & age == "62"] <- "44")      
+
+#Before I change the last slot uniq_id I want to check that it looks right
+
+tt <- Oligos[,Oligos$uniq_id == "HD_23_L-HD240_HC"]
+head(colnames(tt))
+head(tt@meta.data)
+DimPlot(tt, split.by = "donor_status", group.by = "Tissue") #should be Ctrl and CB
+DimPlot(tt, split.by = "CAG_rep_al1", group.by = "PMI") #should be NA and 5:50
+DimPlot(tt, split.by = "CAG_rep_al2", group.by = "cause_death") #should be NA and Cancer
+DimPlot(tt, split.by = "donor_id", group.by = "ProcessNumber") #should be NBB16-056 and 24
+DimPlot(tt, split.by = "age", group.by = "pH") #should be 68 and 6.5
+
+tf <- Oligos[,Oligos$uniq_id == "HD_24_NBB16-056 _CB"]
+head(colnames(tf))
+head(tf@meta.data)
+DimPlot(tf, split.by = "donor_status", group.by = "Tissue") #should be HD and HC
+DimPlot(tf, split.by = "CAG_rep_al1", group.by = "PMI") #should be 20 and 3:30 
+DimPlot(tf, split.by = "CAG_rep_al2", group.by = "cause_death") #should be 44 and General decline 
+DimPlot(tf, split.by = "donor_id", group.by = "ProcessNumber") #should be L-HD240 and 23
+DimPlot(tf, split.by = "pH", group.by = "age") #should be NA and 62
+
+#When I'm happy that everything looks right I change uniq_id last
+Oligos@meta.data <- within(Oligos@meta.data, uniq_id [uniq_id == "HD_23_L-HD240_HC" & process_number =="24"] <- "HD_24_NBB16-056_CB")
+Oligos@meta.data <- within(Oligos@meta.data, uniq_id[uniq_id =="HD_24_NBB16-056 _CB" & process_number =="23"] <- "HD_23_L-HD240_HC")
+
+DimPlot(Oligos, split.by = "Tissue",  cols = mycoloursP) + NoLegend()
+
+#I also use this opportunity to change/add some meta.data slots 
+
+df <- data.frame(genes = rownames(Oligos))
+df[grep("^MT-", df$genes),]
+mt_genes <- rownames(Oligos)[grep("^MT-",rownames(Oligos))]
+C <- GetAssayData(object = Oligos, slot = "counts")
+percent_mito <- colSums(C[mt_genes,])/Matrix::colSums(C)*100
+Oligos <- AddMetaData(Oligos, percent_mito, col.name = "total_percent_mito")
+VlnPlot(Oligos, features = "total_percent_mito", pt.size = 0, cols = 
+          mycoloursP) + NoLegend()
+Oligos$percent.mt <- Oligos$total_percent_mito
+VlnPlot(Oligos, features = "percent.mt", pt.size = 0, cols = 
+          mycoloursP) + NoLegend()
+
+Oligos@meta.data$process_number = NULL
+Oligos@meta.data$tissue_id = NULL
+Oligos@meta.data$total_percent_mito = NULL
+
+saveRDS(Oligos, file = "/exports/eddie/scratch/s1359339/HD/20211005_swapped_data/20211005_Oligos_qc_integrated_annot_swappedsamples.rds")
+
+```
+
+```{r, fig.width=12, fig.height=70, fig.fullwidth=TRUE}
+DimPlot(Oligos, reduction = "umap", split.by = "ProcessNumber", label = FALSE, cols = mycoloursP, ncol = 2) + NoLegend()
+```
