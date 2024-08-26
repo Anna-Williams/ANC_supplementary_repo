@@ -1,0 +1,298 @@
+---
+title: "Shiny"
+author: "Nadine Bestard"
+date: ""
+output: html_document
+---
+
+```{r}
+library(ShinyCell)
+library(Seurat)
+library(here)
+library(ggsci)
+library(tidyseurat)
+```
+
+```{r}
+
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7, "black", "blue")
+```
+
+
+
+# Complete dataset
+
+```{r}
+seur_comb <- readRDS(here("data/20211005_seur_comb_qc_integrated_annot_swappedsamples.rds"))
+# remove the skf donor
+seur_comb <- seur_comb %>% filter(donor_id != "EBBSD031/14")                   
+DefaultAssay(seur_comb) <- "integrated"
+
+scConf1 = createConfig(seur_comb, meta.to.include =  c("nCount_RNA" ,  "nFeature_RNA" ,  "Barcode",  "ProcessNumber","RIN_val" , "donor_id", "donor_status", "sex", "age","PMI", "CAG_rep_al1", "CAG_rep_al2", "seq_pool" , "X10X_chip", "percent.mt" , "sum","detected" ,"Tissue" ,"scDblFinder.weighted", "scDblFinder.ratio","scDblFinder.class","scDblFinder.score","integrated_snn_res.0.4", "clusters_named"))
+
+scConf1 = modMetaName(scConf1, meta.to.mod = c("X10X_chip", 
+                                               "percent.mt",
+                                               "Tissue"), 
+                      new.name = c("10X_batch",
+                                   "percent_mito",
+                                   "region"))
+
+scConf1 = modDefault(scConf1, default1 = "clusters_named", default2 = "region")
+                      
+                      
+
+scConf1 = modColours(scConf1, meta.to.mod = "clusters_named", 
+                     new.colours= mycoloursP[1:22])
+
+makeShinyFiles(seur_comb, scConf1, gex.assay = "RNA", gex.slot = "data",
+               gene.mapping = TRUE, shiny.prefix = "sc1",
+               shiny.dir = "shiny_app_multi/",
+               default.gene1 = "PLP1", default.gene2 = "SNAP25",
+               default.dimred = c("UMAP_1", "UMAP_2"))
+
+rm(seur_comb)
+
+
+
+```
+
+# Oligodendroglia
+
+```{r}
+
+seu <- readRDS(here("data/repeat_with_no_schizophrenia/oligodendrocytes.RDS"))
+#seu <- RenameIdents(seu,   "Oligo_cedar" = "Oligo_Cedar",
+                                                       # "Oligo_rowan" = "Oligo_Rowan",
+                                                       #  "Oligo_ash" = "Oligo_Ash",
+                                                       #  "Oligo_birch" = "Oligo_Birch",
+                                                       #  "Oligo_maple" = "Oligo_Maple", 
+                                                       #  "Oligo_elder" = "Oligo_Elder",
+                                                       #  "Oligo_oak" = "Oligo_Oak",
+                                                       # "OPC_pine" = "OPC_Pine",
+                                                       #  "OPC_fir" = "OPC_Fir",
+                                                       #  "COP_cherry" = "COP_Cherry",
+                                                       #  "COP_apple" = "COP_Apple")
+seu$ol_clusters_named <- Idents(seu)
+DefaultAssay(seu)<- "integrated"
+
+
+scConf2 = createConfig(seu, meta.to.include =  c("nCount_RNA" ,  "nFeature_RNA" ,  "Barcode",  "ProcessNumber","RIN_val" , "donor_id", "donor_status", "sex", "age","PMI", "CAG_rep_al1", "CAG_rep_al2", "seq_pool" , "X10X_chip", "percent.mt" , "sum","detected" ,"Tissue" ,"scDblFinder.weighted", "scDblFinder.ratio","scDblFinder.class","scDblFinder.score","integrated_snn_res.0.5", "ol_clusters_named_without_skf"))
+
+scConf2 = modDefault(scConf2, default1 = "ol_clusters_named_without_skf", default2 = "region")
+
+scConf2 = modColours(scConf2, meta.to.mod = "ol_clusters_named_without_skf", 
+                     new.colours= mycoloursP[1:length(levels(seu$ol_clusters_named))])
+
+scConf2 = modMetaName(scConf2, meta.to.mod = c("X10X_chip", 
+                                               "percent.mt",
+                                               "Tissue",
+                                               "ol_clusters_named_without_skf"), 
+                      new.name = c("10X_batch",
+                                   "percent_mito",
+                                   "region",
+                                   "ol_clusters_named"))
+makeShinyFiles(seu, scConf2, gex.assay = "RNA", gex.slot = "data",
+               gene.mapping = TRUE, shiny.prefix = "sc2",
+               shiny.dir = "shiny_app_multi/",
+               default.gene1 = "PLP1", default.gene2 = "PDGFRA",
+               default.dimred = c("UMAP_1", "UMAP_2"))
+
+
+```
+#astrocytes
+
+```{r}
+
+seu <- readRDS("data/repeat_with_no_schizophrenia/astrocytes.RDS")
+# seu <- RenameIdents(seu,
+#                        "Astro_1" ="Astro_Mint",
+#                        "Astro_2" = "Astro_Basil",
+#                        "Astro_3" = "Astro_Chives",
+#                        "Astro_4_CB" = "Astro_Sage",
+#                        "Astro_5" = "Astro_Thyme",
+#                        "Astro_6_CB" = "Astro_Chervil")
+seu$as_clusters_named <- Idents(seu)
+DefaultAssay(seu) <- "integrated"
+
+scConf3 = createConfig(seu, meta.to.include =  c("nCount_RNA" ,  "nFeature_RNA" ,  "Barcode",  "ProcessNumber","RIN_val" , "donor_id", "donor_status", "sex", "age", "PMI", "CAG_rep_al1", "CAG_rep_al2", "seq_pool" , "X10X_chip", "percent.mt" , "sum","detected" ,"Tissue" ,"scDblFinder.weighted", "scDblFinder.ratio","scDblFinder.class","scDblFinder.score",
+                                                 #"integrated_snn_res.0.2",
+                                                 "as_clusters_named_without_skf"))
+
+
+scConf3 = modDefault(scConf3, default1 = "as_clusters_named_without_skf", default2 = "donor_status")
+
+scConf3 = modColours(scConf3, meta.to.mod = "as_clusters_named_without_skf", 
+                     new.colours= mycoloursP[1:length(levels(seu$as_clusters_named))])
+
+scConf3 = modMetaName(scConf3, meta.to.mod = c("X10X_chip", 
+                                               "percent.mt",
+                                               "Tissue",
+                                               "as_clusters_named_without_skf"), 
+                      new.name = c("10X_batch",
+                                   "percent_mito",
+                                   "region",
+                                   "as_clusters_named"))
+
+makeShinyFiles(seu, scConf3, gex.assay = "RNA", gex.slot = "data",
+               gene.mapping = TRUE, shiny.prefix = "sc3",
+               shiny.dir = "shiny_app_multi/",
+               default.gene1 = "GFAP", default.gene2 = "ALDH1L1",
+               default.dimred = c("UMAP_1", "UMAP_2"))
+
+
+
+```
+#Microglia
+```{r}
+seu <- readRDS(here("data/repeat_with_no_schizophrenia/microglia.RDS"))
+
+# seu <- RenameIdents(seu,"MM_Rose" = "Mglia_Rose",
+#                                                         "MM_Violet" = "Mglia_Violet",
+#                                                         "MM_Lily" = "Mglia_Lily",
+#                                                         "MM_Daisy" = "Mglia_Daisy",
+#                                                         "MM_Tulip" = "Mglia_Tulip",
+#                                                         "MM_Orchid" = "BAMs",
+#                                                         "MM_Lupin" = "Mglia_Lupin",
+#                                                        "MM_Pansy" = "Mglia_Pansy")
+seu$mm_clusters_named <- Idents(seu)
+
+DefaultAssay(seu) <- "integrated"
+
+scConf4 = createConfig(seu, meta.to.include =  c("nCount_RNA" ,  "nFeature_RNA" ,  "Barcode",  "ProcessNumber","RIN_val" , "donor_id", "donor_status", "sex", "age","PMI", "CAG_rep_al1", "CAG_rep_al2", "seq_pool" , "X10X_chip", "percent.mt" , "sum","detected" ,"Tissue" ,"scDblFinder.weighted", "scDblFinder.ratio","scDblFinder.class","scDblFinder.score",#"integrated_snn_res.0.2",
+                                                 "as_clusters_named_without_skf"))
+
+scConf4 = modDefault(scConf4, default1 = "as_clusters_named_without_skf", default2 = "donor_status")
+
+scConf4 = modColours(scConf4, meta.to.mod = "as_clusters_named_without_skf", 
+                     new.colours= mycoloursP[1:length(levels(seu$as_clusters_named_without_skf))])
+
+scConf4 = modMetaName(scConf4, meta.to.mod = c("X10X_chip", 
+                                               "percent.mt",
+                                               "Tissue",
+                                               "as_clusters_named_without_skf"), 
+                      new.name = c("10X_batch",
+                                   "percent_mito",
+                                   "region",
+                                   "mm_clusters_named"))
+
+scConf4 = modDefault(scConf4, default1 = "mm_clusters_named", default2 = "donor_status")
+
+
+
+makeShinyFiles(seu, scConf4, gex.assay = "RNA", gex.slot = "data",
+               gene.mapping = TRUE, shiny.prefix = "sc4",
+               shiny.dir = "shiny_app_multi/",
+               default.gene1 = "CD74", default.gene2 = "CX3CR1",
+               default.dimred = c("UMAP_1", "UMAP_2"))
+
+
+```
+<!-- #Vascular -->
+
+<!-- ```{r} -->
+<!-- seu <- readRDS("//sg.datastore.ed.ac.uk/cmvm/scs/groups/Williamsdata/Sunniva/HD/datasets/06_swapped/subclusters/20211201_endoperi.rds") -->
+
+<!-- DefaultAssay(seu) <- "integrated" -->
+
+<!-- scConf5 = createConfig(seu, meta.to.include =  c("nCount_RNA" ,  "nFeature_RNA" ,  "Barcode",  "ProcessNumber","RIN_val" , "donor_id", "donor_status", "sex", "age","PMI", "CAG_rep_al1", "CAG_rep_al2", "seq_pool" , "X10X_chip", "percent.mt" , "sum","detected" ,"Tissue" ,"scDblFinder.weighted", "scDblFinder.ratio","scDblFinder.class","scDblFinder.score","integrated_snn_res.0.2", "ep_clusters_named")) -->
+
+<!-- scConf5 = modMetaName(scConf5, meta.to.mod = c("X10X_chip",  -->
+<!--                                                "percent.mt", -->
+<!--                                                "Tissue"),  -->
+<!--                       new.name = c("10X_batch", -->
+<!--                                    "percent_mito", -->
+<!--                                    "region")) -->
+
+<!-- scConf5 = modDefault(scConf5, default1 = "ep_clusters_named", default2 = "region") -->
+
+
+
+
+<!-- makeShinyFiles(seu, scConf5, gex.assay = "RNA", gex.slot = "data", -->
+<!--                gene.mapping = TRUE, shiny.prefix = "sc5", -->
+<!--                shiny.dir = "shiny_app_multi/", -->
+<!--                default.gene1 = "CLDN5", default.gene2 = "NOTCH3", -->
+<!--                default.dimred = c("UMAP_1", "UMAP_2")) -->
+
+
+
+
+<!-- ``` -->
+
+<!-- #ENs -->
+<!-- ```{r} -->
+<!-- seu <- readRDS("//sg.datastore.ed.ac.uk/cmvm/scs/groups/Williamsdata/Sunniva/HD/datasets/06_swapped/subclusters/20211201_ENs.rds") -->
+
+<!-- DefaultAssay(seu) <- "integrated" -->
+
+<!-- scConf6 = createConfig(seu, meta.to.include =  c("nCount_RNA" ,  "nFeature_RNA" ,  "Barcode",  "ProcessNumber","RIN_val" , "donor_id", "donor_status", "sex", "age","PMI", "CAG_rep_al1", "CAG_rep_al2", "seq_pool" , "X10X_chip", "percent.mt" , "sum","detected" ,"Tissue" ,"scDblFinder.weighted", "scDblFinder.ratio","scDblFinder.class","scDblFinder.score","integrated_snn_res.0.2", "en_clusters_named")) -->
+
+<!-- scConf6 = modMetaName(scConf6, meta.to.mod = c("X10X_chip",  -->
+<!--                                                "percent.mt", -->
+<!--                                                "Tissue"),  -->
+<!--                       new.name = c("10X_batch", -->
+<!--                                    "percent_mito", -->
+<!--                                    "region")) -->
+
+<!-- scConf6 = modDefault(scConf6, default1 = "en_clusters_named", default2 = "region") -->
+
+
+<!-- makeShinyFiles(seu, scConf6, gex.assay = "RNA", gex.slot = "data", -->
+<!--                gene.mapping = TRUE, shiny.prefix = "sc6", -->
+<!--                shiny.dir = "shiny_app_multi/", -->
+<!--                default.gene1 = "RELN", default.gene2 = "SLC17A7", -->
+<!--                default.dimred = c("UMAP_1", "UMAP_2")) -->
+
+<!-- ``` -->
+
+
+<!-- #INs -->
+
+<!-- ```{r} -->
+
+<!-- DefaultAssay(seu) <- "integrated" -->
+
+<!-- scConf7 = createConfig(seu, meta.to.include =  c("nCount_RNA" ,  "nFeature_RNA" ,  "Barcode",  "ProcessNumber","RIN_val" , "donor_id", "donor_status", "sex", "age","PMI", "CAG_rep_al1", "CAG_rep_al2", "seq_pool" , "X10X_chip", "percent.mt" , "sum","detected" ,"Tissue" ,"scDblFinder.weighted", "scDblFinder.ratio","scDblFinder.class","scDblFinder.score","integrated_snn_res.0.2", "in_clusters_named")) -->
+
+<!-- scConf7 = modMetaName(scConf7, meta.to.mod = c("X10X_chip",  -->
+<!--                                                "percent.mt", -->
+<!--                                                "Tissue"),  -->
+<!--                       new.name = c("10X_batch", -->
+<!--                                    "percent_mito", -->
+<!--                                    "region")) -->
+
+<!-- scConf7 = modDefault(scConf7, default1 = "in_clusters_named", default2 = "region") -->
+
+
+<!-- makeShinyFiles(seu, scConf7, gex.assay = "RNA", gex.slot = "data", -->
+<!--                gene.mapping = TRUE, shiny.prefix = "sc7", -->
+<!--                shiny.dir = "shiny_app_multi/", -->
+<!--                default.gene1 = "RELN", default.gene2 = "GAD1", -->
+<!--                default.dimred = c("UMAP_1", "UMAP_2")) -->
+<!-- ``` -->
+
+
+```{r}
+
+makeShinyCodesMulti(
+  shiny.title = "Transcriptomic profiling of glia in Huntington's disease", 
+  shiny.footnotes = "",
+  shiny.prefix = c("sc1", "sc2", "sc3", "sc4"),#, "sc5", "sc6", "sc7"),
+  shiny.headers = c("Complete dataset", "Oligodendroglia", "Astrocytes" ,                    "Microglia"),#, "Vascular cells", "Excitatory neurons", "Inhibitory neurons"), 
+  shiny.dir = "shiny_app_multi/") 
+
+```
+
+
+```{r}
+
+sessionInfo()
+```

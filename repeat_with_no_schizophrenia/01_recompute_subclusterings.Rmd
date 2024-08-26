@@ -1,0 +1,355 @@
+---
+title: "Analyse each celltype separate"
+author: "Nadine Bestard"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+.libPaths("U:/Datastore/CMVM/scs/groups/Williamsdata/Sunniva/Nadine/renv/library/R-4.4/x86_64-w64-mingw32")
+```
+
+# Libraries
+```{r}
+library(here)
+library(tidyseurat)
+library(Seurat)
+library(ggsci) # colours
+```
+```{r, echo = F}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7)
+
+```
+# ASTRO
+## Load dataset 
+```{r}
+astro <- readRDS(here("data/20211203_astros.rds"))
+# keep the old annotation
+astro <- RenameIdents(astro,
+                       "Astro_1" ="Astro_Mint",
+                       "Astro_2" = "Astro_Basil",
+                       "Astro_3" = "Astro_Chives",
+                       "Astro_4_CB" = "Astro_Sage",
+                       "Astro_5" = "Astro_Thyme",
+                       "Astro_6_CB" = "Astro_Chervil")
+astro$as_clusters_named_with_skf <- Idents(astro)
+astro <- astro %>% filter(donor_id != "EBBSD031/14")
+```
+
+## Recompute dimred ... up to clustering
+
+ previously integrated_snn_res.0.2 was used.
+```{r}
+# findvariable
+DefaultAssay(astro) <-"integrated"
+
+astro <- FindVariableFeatures(astro, 
+                              selection.method = "vst", 
+                               nfeatures = 2000)
+# scale
+all_genes <- rownames(astro)
+astro <- ScaleData(astro, features= all_genes)
+#dimred
+astro <- RunPCA(astro, features = VariableFeatures(object = astro))
+# clustering
+astro <- FindNeighbors(astro, dims = 1:12)
+
+# test different resolutions for clustering - from 0.1 to 0.3
+astro <- FindClusters(astro, resolution = c(seq(from = 0.1, to = 0.3, by = 0.1)), graph.name = "integrated_snn")
+
+
+
+# non-linear reduction
+astro <- RunUMAP(astro, dims = 1:12)
+
+```
+```{r}
+DimPlot(astro, group.by = "integrated_snn_res.0.2")
+DimPlot(astro, group.by = "as_clusters_named_with_skf")
+
+table(astro$as_clusters_named_with_skf, astro$integrated_snn_res.0.2)
+```
+
+
+```{r}
+Idents(astro) <- "integrated_snn_res.0.2"
+astro <- RenameIdents(astro,
+                       "0" ="Astro_Mint",
+                       "1" = "Astro_Basil",
+                       "2" = "Astro_Chives",
+                       "3" = "Astro_Sage",
+                       "4" = "Astro_Thyme",
+                       "5" = "Astro_Oligo",
+                       "6" = "Astro_Chervil")
+astro$as_clusters_named_without_skf <- Idents(astro)
+DimPlot(astro, group.by = "as_clusters_named_without_skf", cols = mycoloursP, label = TRUE, label.size = 5, repel = TRUE)
+ggsave(here("outs/repeat_with_no_schizophrenia/subset_celltypes/astro_umap_labels.pdf"), width = 10)
+
+DimPlot(astro, group.by = "as_clusters_named_without_skf", cols = mycoloursP)
+ggsave(here("outs/repeat_with_no_schizophrenia/subset_celltypes/astro_umap.pdf"))
+```
+## Markers
+```{r}
+DefaultAssay(astro) <- "RNA"
+markers_astro <- FindAllMarkers(astro, test.use = "MAST", logfc.threshold =  0.25)
+markers_astro_filter <- markers_astro %>% 
+  filter(p_val_adj < 0.05,
+         pct.1 > 0.25,
+         pct.2 < 0.60) %>%  arrange(cluster, desc(avg_log2FC))
+markers_astro %>%  arrange(cluster, desc(avg_log2FC)) %>% write.csv( here("outs/repeat_with_no_schizophrenia/subset_celltypes/astro_markers_sortbyFC.csv"))
+write.csv(markers_astro_filter, here("outs/repeat_with_no_schizophrenia/subset_celltypes/astro_markers_filter_sortbyFC.csv"))
+markers_astro_filter %>%  arrange(cluster, desc(p_val_adj)) %>% write.csv( here("outs/repeat_with_no_schizophrenia/subset_celltypes/astro_markers_filter_sortbypval.csv"))
+```
+
+```{r}
+# delete the clustering, as it's a mix between the old and new one
+ astro %>% select(-contains("snn")) %>% 
+saveRDS(here("data/repeat_with_no_schizophrenia/astrocytes.RDS"))
+```
+
+
+## Dot Plot
+these do not change at all from the previous version (a few cells more or less
+in each cluster do not change the visual enough)
+
+```{r}
+astro$as_clusters_named_without_skf <- factor(astro$as_clusters_named_without_skf, levels= c("Astro_Mint",  "Astro_Basil", "Astro_Chives",  "Astro_Sage", "Astro_Thyme", "Astro_Chervil", "Astro_Oligo"))
+DotPlot(astro, c("HSPH1", "SH3BGR","HSPA4L", "ATP2C1", "BAG3"), group.by = "as_clusters_named_without_skf") + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + xlab(NULL) + ylab(NULL)
+ggsave(here("outs/repeat_with_no_schizophrenia/dotplots/dot_plot_astro_markers.pdf"), width = 6, height = 4)
+```
+
+
+
+# MICROGLIA
+
+## Load dataset 
+```{r}
+mglia <- readRDS(here("data/20211027_Mglia.rds"))
+
+mglia$as_clusters_named_with_skf <- Idents(mglia)
+mglia <- mglia %>% filter(donor_id != "EBBSD031/14")
+```
+
+## Recompute dimred ... up to clustering
+
+ previously integrated_snn_res.0.2 was used.
+```{r}
+# findvariable
+DefaultAssay(mglia) <-"integrated"
+
+mglia <- FindVariableFeatures(mglia, 
+                              selection.method = "vst", 
+                               nfeatures = 2000)
+# scale
+all_genes <- rownames(mglia)
+mglia <- ScaleData(mglia, features= all_genes)
+#dimred
+mglia <- RunPCA(mglia, features = VariableFeatures(object = mglia))
+# clustering
+mglia <- FindNeighbors(mglia, dims = 1:14)
+
+# test different resolutions for clustering - from 0.1 to 0.3
+mglia <- FindClusters(mglia, resolution = c(seq(from = 0.1, to = 0.3, by = 0.1)), graph.name = "integrated_snn")
+
+
+
+# non-linear reduction
+mglia <- RunUMAP(mglia, dims = 1:12)
+
+```
+```{r}
+DimPlot(mglia, group.by = "integrated_snn_res.0.2")
+DimPlot(mglia, group.by = "integrated_snn_res.0.3")
+DimPlot(mglia, group.by = "as_clusters_named_with_skf")
+
+table(mglia$as_clusters_named_with_skf, mglia$integrated_snn_res.0.2)
+table(mglia$as_clusters_named_with_skf, mglia$integrated_snn_res.0.3)
+```
+```{r}
+DimPlot(mglia, group.by = "donor_status")
+```
+
+
+```{r}
+Idents(mglia) <- "integrated_snn_res.0.3"
+mglia <- RenameIdents(mglia,
+                       "0" ="Mglia_Rose",
+                       "1" = "Mglia_Rose",
+                       "2" = "Mglia_Violet",
+                       "3" = "Mglia_Lily",
+                       "4" = "Mglia_Daisy",
+                       "5" = "Mglia_BAMs",
+                       "6" = "Mglia_Tulip",
+                       "7" = "Mglia_Lupin",
+                       "8" = "Mglia_Pansy")
+mglia$as_clusters_named_without_skf <- Idents(mglia)
+DimPlot(mglia, group.by = "as_clusters_named_without_skf", cols = mycoloursP, label = TRUE, label.size = 5, repel = TRUE)
+ggsave(here("outs/repeat_with_no_schizophrenia/subset_celltypes/mglia_umap_labels.pdf"), width = 10, height = 7)
+
+DimPlot(mglia, group.by = "as_clusters_named_without_skf", cols = mycoloursP)
+ggsave(here("outs/repeat_with_no_schizophrenia/subset_celltypes/mglia_umap.pdf"))
+```
+## Markers
+```{r}
+DefaultAssay(mglia) <- "RNA"
+markers_mglia <- FindAllMarkers(mglia, test.use = "MAST", logfc.threshold =  0.25)
+markers_mglia_filter <- markers_mglia %>% 
+  filter(p_val_adj < 0.05,
+         pct.1 > 0.25,
+         pct.2 < 0.60) %>%  arrange(cluster, desc(avg_log2FC))
+markers_mglia %>%  arrange(cluster, desc(avg_log2FC)) %>% write.csv( here("outs/repeat_with_no_schizophrenia/subset_celltypes/mglia_markers_sortbyFC.csv"))
+write.csv(markers_mglia_filter, here("outs/repeat_with_no_schizophrenia/subset_celltypes/mglia_markers_filter_sortbyFC.csv"))
+markers_mglia_filter %>%  arrange(cluster, desc(p_val_adj)) %>% write.csv( here("outs/repeat_with_no_schizophrenia/subset_celltypes/mglia_markers_filter_sortbypval.csv"))
+```
+
+```{r}
+# delete the clustering, as it's a mix between the old and new one
+ mglia %>% select(-contains("snn")) %>% 
+saveRDS(here("data/repeat_with_no_schizophrenia/microglia.RDS"))
+```
+
+
+## Dot Plot
+
+
+these do not change at all from the previous version (a few cells more or less
+in each cluster do not change the visual enough)
+
+```{r}
+mglia$as_clusters_named_without_skf <- factor(mglia$as_clusters_named_without_skf, levels= c("Mglia_Rose", "Mglia_Violet", "Mglia_Lily", "Mglia_Daisy", 
+"Mglia_Tulip",  "Mglia_BAMs","Mglia_Lupin", "Mglia_Pansy"))
+DotPlot(mglia, c("CX3CR1", "P2RY12", "TMEM163", "HSPH1", "HSPAA5","DNAJB1","BAG3", "CHORDC1"), group.by = "as_clusters_named_without_skf") + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + ylab(NULL) + xlab(NULL)
+ggsave(here("outs/repeat_with_no_schizophrenia/dotplots/dotplot_mglia_markers.pdf"), width = 6, height = 4)
+```
+
+
+Dot plot for figure3:
+```{r}
+DotPlot(mglia, c("CX3CR1", "P2RY12", "TMEM119", "TYROBP", "CTSB","APOE", "B2M", "TREM2", "AXL", "CST7", "CTSL", "LPL", "ITGAX", "CLEC7A", "LILRB4", "TIMP2")) + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + xlab(NULL) + ylab(NULL)
+ggsave(here("outs/repeat_with_no_schizophrenia/dotplots/fig3E.pdf"), width = 8, height = 4)
+```
+
+
+
+# OLIGO
+## Load dataset 
+```{r}
+oligo <- readRDS(here("data/20211005_Oligos_qc_integrated_annot_swappedsamples.rds"))
+
+oligo$ol_clusters_named_with_skf <- oligo$ol_clusters_named
+oligo <- oligo %>% filter(donor_id != "EBBSD031/14")
+```
+
+## Recompute dimred ... up to clustering
+
+ previously integrated_snn_res.0.5 was used.
+```{r}
+# findvariable
+DefaultAssay(oligo) <-"integrated"
+
+oligo <- FindVariableFeatures(oligo, 
+                              selection.method = "vst", 
+                               nfeatures = 2000)
+# scale
+all_genes <- rownames(oligo)
+oligo <- ScaleData(oligo, features= all_genes)
+#dimred
+oligo <- RunPCA(oligo, features = VariableFeatures(object = oligo))
+# clustering
+oligo <- FindNeighbors(oligo, dims = 1:13)
+
+# delete the old clustering
+oligo <- oligo %>% select(-contains("snn"))
+# test different resolutions for clustering - from 0.4 to 0.6
+oligo <- FindClusters(oligo, resolution = c(seq(from = 0.4, to = 0.6, by = 0.1)), graph.name = "integrated_snn")
+
+
+
+# non-linear reduction
+oligo <- RunUMAP(oligo, dims = 1:12)
+
+```
+```{r}
+DimPlot(oligo, group.by = "integrated_snn_res.0.5")
+DimPlot(oligo, group.by = "integrated_snn_res.0.6", cols = mycoloursP)
+#DimPlot(oligo, group.by = "integrated_snn_res.0.4")
+DimPlot(oligo, group.by = "ol_clusters_named_with_skf", label = TRUE, cols = mycoloursP)
+DimPlot(oligo, group.by = "donor_status")
+table(oligo$ol_clusters_named_with_skf, oligo$integrated_snn_res.0.5)
+table(oligo$ol_clusters_named_with_skf, oligo$integrated_snn_res.0.6)
+
+```
+
+I will use the resolution 0.6 - compared with the previous version with the skf 
+sample we have one less cluster Oligo Ash is lost. The cops are in a single cluster
+```{r}
+Idents(oligo) <- "integrated_snn_res.0.6"
+oligo <- RenameIdents(oligo,
+                       "0" ="Oligo_Maple",
+                       "1" = "Oligo_Maple",
+                       "2" = "Oligo_Oak",
+                       "3" = "Oligo_Birch",
+                       "4" = "Oligo_Oak",
+                       "5" = "Oligo_Elder",
+                       "6" = "OPC_Fir",
+                       "7" = "Oligo_Rowan",
+                       "8" = "Oligo_Cedar",
+                       "9" = "COPs",
+                       "10" = "OPC_Pine")
+oligo$ol_clusters_named_without_skf <- Idents(oligo)
+DimPlot(oligo, group.by = "ol_clusters_named_without_skf", cols = mycoloursP, label = TRUE, label.size = 5, repel = TRUE)
+ggsave(here("outs/repeat_with_no_schizophrenia/subset_celltypes/oligo_umap_labels.pdf"), height = 7, width = 10)
+
+DimPlot(oligo, group.by = "ol_clusters_named_without_skf", cols = mycoloursP)
+ggsave(here("outs/repeat_with_no_schizophrenia/subset_celltypes/oligo_umap.pdf"), height = 7, width = 10)
+```
+## Markers
+```{r}
+DefaultAssay(oligo) <- "RNA"
+markers_oligo <- FindAllMarkers(oligo, test.use = "MAST", logfc.threshold =  0.25)
+saveRDS(markers_oligo, here("outs/repeat_with_no_schizophrenia/subset_celltypes/oligo_markers.rds"))
+```
+
+```{r}
+markers_oligo_filter <- markers_oligo %>% 
+  filter(p_val_adj < 0.05,
+         pct.1 > 0.25,
+         pct.2 < 0.60) %>%  arrange(cluster, desc(avg_log2FC))
+markers_oligo %>%  arrange(cluster, desc(avg_log2FC)) %>% write.csv( here("outs/repeat_with_no_schizophrenia/subset_celltypes/oligo_markers_sortbyFC.csv"))
+write.csv(markers_oligo_filter, here("outs/repeat_with_no_schizophrenia/subset_celltypes/oligo_markers_filter_sortbyFC.csv"))
+#markers_astro_filter %>%  arrange(cluster, desc(p_val_adj)) %>% write.csv( here("outs/repeat_with_no_schizophrenia/subset_celltypes/oligo_markers_filter_sortbypval.csv"))
+
+```
+
+## Dot Plot
+This one should be redone as there is a cluster different.
+
+```{r}
+DefaultAssay(oligo) <- "RNA"
+oligo$ol_clusters_named_without_skf <- factor(oligo$ol_clusters_named_without_skf, levels= c("Oligo_Cedar","Oligo_Rowan","Oligo_Birch","Oligo_Maple", "Oligo_Elder", 
+"Oligo_Oak", "OPC_Pine", "OPC_Fir", "COPs"))
+DotPlot(oligo, c("HUNK", "MYO7A", "ITGA8", "CTXND1", "FMN1", "ITM2A", "ROR1", "SVEP1"), group.by = "ol_clusters_named_without_skf") + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + ylab(NULL) + xlab(NULL)
+ggsave(here("outs/repeat_with_no_schizophrenia/dotplots/dotplot_oligo_markers.pdf"), width = 6, height = 4)
+
+```
+
+
+
+```{r}
+
+saveRDS(oligo, here("data/repeat_with_no_schizophrenia/oligodendrocytes.RDS"))
+```
+
+

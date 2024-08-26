@@ -1,0 +1,136 @@
+---
+title: "DE"
+author: "Nadine Bestard"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(Seurat)
+library(MAST)
+library(tidyseurat)
+library(dplyr)
+library(tibble)
+library(EnhancedVolcano)
+library(ggsci)
+```
+
+```{r}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7)
+
+```
+```{r}
+oligo <- readRDS(here("data/repeat_with_no_schizophrenia/oligodendrocytes.RDS"))
+DefaultAssay(oligo) <- "RNA"
+```
+
+
+```{r}
+Idents(oligo) <- "donor_status"
+
+oligo$tissue_ol_clu <- paste0(oligo$Tissue, "_", oligo$ol_clusters_named_without_skf)
+
+overall_DE <- FindMarkers(oligo, ident.1 = "HD", logfc.threshold = 0.8, test.use = "MAST"  )
+
+tissue_ol_clu <- unique(oligo$tissue_ol_clu)
+de_big <- data.frame()
+for(cluster in tissue_ol_clu){
+  print(cluster)
+  oligo_subset <- oligo %>% filter(tissue_ol_clu == cluster)
+  de <- FindMarkers(oligo_subset, ident.1 = "HD", logfc.threshold = 0.8, test.use = "MAST"  )
+  de <- de %>% mutate(tissue_ol_clu = cluster) %>% 
+    filter(p_val_adj < 0.05) %>% 
+    rownames_to_column("gene")
+  write.csv(de, here("outs", paste0( "HDvsCntrl_DE_in_", cluster,".csv")))
+
+  de_big <- rbind(de_big, de)
+}
+write.csv(de_big, here("outs", "oligo_HDvsCntrl_DE_in_tissue_ol_clu.csv"))
+```
+
+# volcano Plot
+```{r}
+# add region and cluster
+de_big$Region <- stringr::str_split_i(de_big$tissue_ol_clu, "_", 1)
+de_big$Cluster <- stringr::str_split_i(de_big$tissue_ol_clu, "_", 3)
+keyvals.col <- case_when(
+  de_big$Cluster =="Birch"~ mycoloursP[12],
+  de_big$Cluster =="Cedar"~ mycoloursP[24],
+  de_big$Cluster == "Rowan"~ mycoloursP[10],
+  de_big$Cluster == "Elder"~ mycoloursP[26],
+  de_big$Cluster =="Fir"~ mycoloursP[16],
+  de_big$Cluster =="Maple"~ mycoloursP[17],
+  de_big$Cluster == "Oak"~ mycoloursP[18],
+  de_big$Cluster == "Pine"~ mycoloursP[19], 
+  is.na(de_big$Cluster)~ mycoloursP[22])
+
+names(keyvals.col)[keyvals.col == mycoloursP[10]] <- 'Oligo_Rowan'
+names(keyvals.col)[keyvals.col == mycoloursP[12]] <- "Oligo_Birch"
+names(keyvals.col)[keyvals.col == mycoloursP[24]] <- "Oligo_Cedar"
+names(keyvals.col)[keyvals.col == mycoloursP[26]]<-"Oligo_Elder"
+names(keyvals.col)[keyvals.col == mycoloursP[16]]<-"OPC_Fir"
+names(keyvals.col)[keyvals.col == mycoloursP[17]]<-"Oligo_Maple"
+names(keyvals.col)[keyvals.col == mycoloursP[18]]<-"Oligo_Oak"
+names(keyvals.col)[keyvals.col == mycoloursP[19]]<-"OPC_Pine"
+names(keyvals.col)[keyvals.col == mycoloursP[22]]<-"COP"
+
+
+keyvals.shape <- ifelse(
+  de_big$Region == "CN", 17,
+  ifelse(de_big$Region == "HC", 16,
+         15))
+names(keyvals.shape)[keyvals.shape == 15] <- 'FrCx'
+names(keyvals.shape)[keyvals.shape == 17] <- 'CN'
+names(keyvals.shape)[keyvals.shape == 16] <- 'HC'
+#PDE1A plot
+pde<- EnhancedVolcano(de_big,
+                lab = de_big$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 3.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = "PDE1A",
+                legendPosition = "right",
+                boxedLabels = T,         
+                drawConnectors = T,
+                legendLabSize = 12,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                xlim = c((min(de_big$avg_log2FC) - .05), (max(de_big$avg_log2FC + 0.5))))
+ggsave(here("outs/repeat_with_no_schizophrenia/pde1a/volcano_plot_oligos.pdf"), pde, width = 10, height = 5)
+```
+
+# violin plot
+```{r}
+library(tidyseurat)
+library(stringr)
+oligo %>% 
+  filter(Tissue %in% c("HC", "CN", "FrCx")) %>% 
+VlnPlot("PDE1A", group.by = "Tissue", split.by = "donor_status", split.plot = FALSE, cols = c("#8dace5", "#a9d14d"), alpha = 0)
+ggsave(here("outs/repeat_with_no_schizophrenia/pde1a/pde1a_violin_plot.pdf"), height = 3, width = 7)
+
+oligo %>% 
+  filter(str_detect(ol_clusters_named_without_skf, "^Oligo_")) %>% 
+VlnPlot("PDE1A", group.by = "ol_clusters_named_without_skf", split.by = "donor_status", split.plot = FALSE, cols = c("#8dace5", "#a9d14d"), alpha = 0) + xlab(NULL)
+ggsave(here("outs/repeat_with_no_schizophrenia/pde1a/pde1a_by_cluster_violin_plot.pdf"), height = 3, width = 7)
+
+```
+

@@ -1,0 +1,843 @@
+---
+title: "DE"
+author: "Nadine Bestard"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(Seurat) 
+library(MAST)
+library(tidyseurat)
+library(dplyr)
+library(tibble)
+library(EnhancedVolcano)
+library(ggsci)
+```
+
+#set colour palette
+```{r}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7)
+#show_col(mycoloursP, labels =F)
+```
+# load objects
+```{r}
+mglia <- readRDS(here("data/repeat_with_no_schizophrenia/microglia.RDS"))
+astro <-  readRDS(here("data/repeat_with_no_schizophrenia/astrocytes.RDS"))
+oligo <-  readRDS(here("data/repeat_with_no_schizophrenia/oligodendrocytes.RDS"))
+```
+# OPC_Pine
+```{r}
+
+opc_pine <- oligo %>% filter(ol_clusters_named_without_skf == "OPC_Pine")
+DefaultAssay(opc_pine) <- "RNA"
+```
+
+
+```{r}
+Idents(opc_pine) <- "donor_status"
+
+tissues<- unique(opc_pine$Tissue)
+de_big <- data.frame()
+for(tissue in tissues){
+  print(tissue)
+  opc_pine_subset <- opc_pine %>% filter(Tissue == tissue)
+  de <- FindMarkers(opc_pine_subset, ident.1 = "HD", logfc.threshold = 0.8, test.use = "MAST"  )
+  de <- de %>% mutate(tissue = tissue) %>% 
+    filter(p_val_adj < 0.05) %>% 
+    rownames_to_column("gene")
+  write.csv(de, here("outs", "repeat_with_no_schizophrenia", "chaperons", paste0( "HDvsCntrl_DE_in_OPC_Pine_", tissue,".csv")))
+
+  de_big <- rbind(de_big, de)
+}
+write.csv(de_big, here("outs", "repeat_with_no_schizophrenia", "chaperons", "OPC_Pine_HDvsCntrl_DE_in_each_tissue.csv"))
+```
+
+# astro_Thyme
+
+```{r}
+astro$as_clusters_named <- Idents(astro)
+astro_thyme <- astro %>% filter(as_clusters_named_without_skf == "Astro_Thyme")
+
+```
+
+
+```{r}
+Idents(astro_thyme) <- "donor_status"
+
+tissues<- unique(astro_thyme$Tissue)
+de_big <- data.frame()
+for(tissue in tissues){
+  print(tissue)
+  astro_thyme_subset <- astro_thyme %>% filter(Tissue == tissue)
+  de <- FindMarkers(astro_thyme_subset, ident.1 = "HD", logfc.threshold = 0.8, test.use = "MAST"  )
+  de <- de %>% mutate(tissue = tissue) %>% 
+    filter(p_val_adj < 0.05) %>% 
+    rownames_to_column("gene")
+  write.csv(de, here("outs", "repeat_with_no_schizophrenia", "chaperons", paste0( "HDvsCntrl_DE_in_astro_thyme_", tissue,".csv")))
+
+  de_big <- rbind(de_big, de)
+}
+write.csv(de_big, here("outs", "repeat_with_no_schizophrenia", "chaperons", "astro_thyme_HDvsCntrl_DE_in_each_tissue.csv"))
+```
+
+# mglia_violet
+```{r}
+
+mglia_violet <- mglia %>% filter(as_clusters_named_without_skf == "Mglia_Violet")
+```
+
+```{r}
+Idents(mglia_violet) <- "donor_status"
+
+tissues<- unique(mglia_violet$Tissue)
+de_big <- data.frame()
+for(tissue in tissues){
+  print(tissue)
+  mglia_violet_subset <- mglia_violet %>% filter(Tissue == tissue)
+  de <- FindMarkers(mglia_violet_subset, ident.1 = "HD", logfc.threshold = 0.8, test.use = "MAST"  )
+  de <- de %>% mutate(tissue = tissue) %>% 
+    filter(p_val_adj < 0.05) %>% 
+    rownames_to_column("gene")
+  write.csv(de, here("outs", "repeat_with_no_schizophrenia", "chaperons", paste0( "HDvsCntrl_DE_in_mglia_violet_", tissue,".csv")))
+
+  de_big <- rbind(de_big, de)
+}
+write.csv(de_big, here("outs", "repeat_with_no_schizophrenia", "chaperons", "mglia_violet_HDvsCntrl_DE_in_each_tissue.csv"))
+```
+
+# Explore
+Reloading the csvs with shorter names
+```{r}
+library(readr)
+astro_thyme_de <- read_csv(here("outs", "repeat_with_no_schizophrenia", "chaperons", "astro_thyme_HDvsCntrl_DE_in_each_tissue.csv"))
+mglia_violet_de <- read_csv(here("outs", "repeat_with_no_schizophrenia", "chaperons", "mglia_violet_HDvsCntrl_DE_in_each_tissue.csv"))
+OPC_pine_de <- read_csv(here("outs", "repeat_with_no_schizophrenia", "chaperons", "OPC_Pine_HDvsCntrl_DE_in_each_tissue.csv"))
+
+```
+
+```{r}
+mglia_violet_de %>% 
+  count(tissue)
+
+mglia_violet_de %>% 
+  filter(avg_log2FC > 0) %>% 
+  count(tissue)
+
+# this does not make sense if I'm not filtering for + too (just testing)
+mglia_violet_de %>% 
+  filter(pct.1 > 0.25,
+         pct.2 < 0.6) %>% 
+  count(tissue)
+
+```
+```{r}
+astro_thyme_de %>% 
+  count(tissue)
+
+astro_thyme_de %>% 
+  filter(avg_log2FC > 0) %>% 
+  count(tissue)
+
+astro_thyme_de %>% 
+  filter(avg_log2FC > 0) %>% 
+  filter(tissue == "HC") 
+```
+```{r}
+OPC_pine_de %>% count(tissue)
+```
+
+<!-- # common DE -->
+<!-- ```{r} -->
+<!-- opc_de <- read.csv(here("outs/repeat_with_no_schizophrenia/chaperons/OPC_Pine_HDvsCntrl_DE_in_each_tissue.csv")) -->
+<!-- astro_de <- read.csv(here("outs/repeat_with_no_schizophrenia/chaperons/astro_thyme_HDvsCntrl_DE_in_each_tissue.csv")) -->
+<!-- mglia_de <- read.csv(here("outs/repeat_with_no_schizophrenia/chaperons/mglia_violet_HDvsCntrl_DE_in_each_tissue.csv")) -->
+
+<!-- intersect(intersect(mglia_de$gene, opc_de$gene), astro_de$gene) -->
+<!-- ``` -->
+# common cluster markers
+```{r}
+astro_markers <- read.csv("outs/repeat_with_no_schizophrenia/subset_celltypes/astro_markers_filter.csv")
+thyme_markers <- astro_markers %>% filter(cluster == "Astro_Thyme")
+
+mglia_markers <- read.csv("outs/repeat_with_no_schizophrenia/subset_celltypes/mglia_markers_filter_sortbyFC.csv")
+violet_markers <- mglia_markers %>% filter(cluster == "Mglia_Violet")
+opc_markers <- read.csv("outs/repeat_with_no_schizophrenia/subset_celltypes/oligo_markers_filter_sortbyFC.csv")
+pine_markers <- opc_markers %>% filter(cluster == "OPC_Pine")
+
+# compare
+# all
+length(intersect(intersect(violet_markers$gene, thyme_markers$gene), pine_markers$gene))
+# pairwise
+length(intersect(violet_markers$gene, thyme_markers$gene))
+length(intersect(pine_markers$gene, thyme_markers$gene))
+length(intersect(pine_markers$gene, violet_markers$gene))
+# how many genes to start with?
+dim(violet_markers)
+dim(thyme_markers)
+dim(pine_markers)
+
+# list of genes any overlapp
+overlaps <- unique(c(intersect(violet_markers$gene, thyme_markers$gene),
+              intersect(pine_markers$gene, thyme_markers$gene),
+               intersect(pine_markers$gene, violet_markers$gene)))
+write.csv(overlaps, here("outs/repeat_with_no_schizophrenia/chaperons/pairwise_overlaps.csv"))
+```
+Check if they are related to HSP (by looking at the GO biological processes database)
+ "BAG3"  - yes
+"SERPINH1" -yes
+"HSPB1"  -  yes
+"SLC7A5" -no
+"OSBPL3"  - no
+"CDC14A" -no  
+"TTTY14"   no
+"FNBP1L"   no
+"NXN"    no
+"GPCPD1" - no
+
+
+```{r}
+chaperons <- c("HSPA1B", "HSPA1A", "BAG3", 
+               "HSPA9", "HSPA4", "ST13", 
+               "HSPA4L", "HSPH1", "CHORDC1", "PTGES3", "PPID", "HSPB1", "DNAJB1", "DNAJB6","DNAJA1","HSPD1","CCT3","CCT4")
+
+DefaultAssay(mglia) <- "RNA"
+DotPlot(mglia, chaperons)
+
+DefaultAssay(astro) <- "RNA"
+DotPlot(astro, chaperons)
+
+DefaultAssay(oligo) <- "RNA"
+DotPlot(oligo, chaperons)
+```
+
+
+# Volcano Plots
+<!-- ##mglia -->
+<!-- ```{r} -->
+
+
+
+<!-- for(i in 1:length(mglia_violet_de$mm_clu)){ -->
+<!--   mglia_violet_de$Region[i] <- strsplit(mglia_violet_de$mm_clu, "_")[[i]][1] -->
+<!--   mglia_violet_de$Cluster[i] <- strsplit(mglia_violet_de$mm_clu, "_")[[i]][3] -->
+<!-- } -->
+
+
+<!-- keyvals.col <- ifelse( -->
+<!--   mglia_violet_de$Region == "HC", mycoloursP[16],  mycoloursP[18]) -->
+
+<!-- names(keyvals.col)[keyvals.col == mycoloursP[16]]<-"HC" -->
+<!-- names(keyvals.col)[keyvals.col == mycoloursP[18]]<-"CN" -->
+
+
+<!-- keyvals.shape <- ifelse( -->
+<!--   mglia_violet_de$Region == "CN", 17,16) -->
+
+
+<!-- names(keyvals.shape)[keyvals.shape == 17] <- 'CN' -->
+<!-- names(keyvals.shape)[keyvals.shape == 16] <- 'HC' -->
+
+
+<!-- int_genes <- c("FKBP4","ST13","AHSA1","HSPE1","HSPB1","DNAJB1","DNAJB6","HSPA4L","PPID","HSPA6","HSPH1","CHORDC1","BAG3","HSP90AB1","HSPA1B","DNAJA1","HSPD1","CCT4","DNAJA4","PTGES3","HSPA4","SERPINH1","IER5","SUGT1", "NEDD4L") -->
+
+
+
+<!-- p1 <- EnhancedVolcano(mglia_violet_de, -->
+<!--                 lab = mglia_violet_de$gene, -->
+<!--                 x = "avg_log2FC", -->
+<!--                 y = "p_val_adj",  -->
+<!--                 labSize = 3.5, -->
+<!--                 FCcutoff = 0.8, -->
+<!--                 pCutoff = 0.05, -->
+<!--                 pointSize = 3, -->
+<!--                 raster = F, -->
+<!--                 #shapeCustom = keyvals.shape, -->
+<!--                 colCustom = keyvals.col, -->
+<!--                 selectLab = unique(int_genes), -->
+<!--                 boxedLabels = T,          -->
+<!--                 drawConnectors = T, -->
+<!--                 #maxoverlapsConnectors = 3, -->
+<!--                 labFace = "bold", -->
+<!--                 title = NULL, -->
+<!--                 subtitle =NULL, -->
+<!--                 legendLabSize = 12, -->
+<!--                 legendIconSize = 4, -->
+<!--                 legendPosition = "right", -->
+<!--                 xlim = c((min(mglia_violet_de$avg_log2FC) - .05), (max(mglia_violet_de$avg_log2FC + 0.5))))  -->
+<!-- ``` -->
+
+
+
+
+the genes showed are from https://www.nature.com/articles/s41467-021-22369-9#MOESM1
+```{r}
+
+chaperon_long_list <- read.csv(here("data/chaperon_list_moesm1.csv"))$Name
+```
+
+##microglia
+```{r}
+
+
+violet_de_2tissues <- mglia_violet_de %>% filter(tissue %in% c("HC", "CN"))
+
+
+keyvals.col <- ifelse(
+  violet_de_2tissues$tissue == "HC", mycoloursP[16],  mycoloursP[18])
+
+names(keyvals.col)[keyvals.col == mycoloursP[16]]<-"HC"
+names(keyvals.col)[keyvals.col == mycoloursP[18]]<-"CN"
+
+
+#keyvals.shape <- ifelse(
+ # violet_de_2tissues$Region == "CN", 17,16)
+
+
+#names(keyvals.shape)[keyvals.shape == 17] <- 'CN'
+#names(keyvals.shape)[keyvals.shape == 16] <- 'HC'
+
+
+int_genes <- chaperon_long_list
+
+
+
+p1 <- EnhancedVolcano(violet_de_2tissues,
+                lab = violet_de_2tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 3.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                max.overlaps = Inf,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                #maxoverlapsConnectors = 3,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(violet_de_2tissues$avg_log2FC) - .05), (max(violet_de_2tissues$avg_log2FC + 0.5)))) 
+#ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_mglia_violet_HC_CN_test.pdf"), p1, width = 15, height = 7)
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_mglia_violet_HC_CN.pdf"), p1, width = 10, height = 5)
+```
+
+
+```{r}
+
+
+violet_de_3tissues <- mglia_violet_de %>% filter(tissue %in% c("FrCx", "CN", "HC"))
+
+
+keyvals.col <- case_when(
+  violet_de_3tissues$tissue == "HC" ~ mycoloursP[16],  
+  violet_de_3tissues$tissue == "FrCx" ~ mycoloursP[8],
+  violet_de_3tissues$tissue == "CN"    ~   mycoloursP[18])
+
+names(keyvals.col)[keyvals.col == mycoloursP[16]]<-"HC"
+names(keyvals.col)[keyvals.col == mycoloursP[18]]<-"CN"
+names(keyvals.col)[keyvals.col == mycoloursP[8]]<-"FrCx"
+
+#keyvals.shape <- ifelse(
+ # violet_de_2tissues$Region == "CN", 17,16)
+
+
+# names(keyvals.shape)[keyvals.shape == 17] <- 'CN'
+# names(keyvals.shape)[keyvals.shape == 16] <- 'FrCx'
+
+
+int_genes <- chaperon_long_list
+
+
+
+p1 <- EnhancedVolcano(violet_de_3tissues,
+                lab = violet_de_3tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 3.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                colGradient = 
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                #maxoverlapsConnectors = 3,
+                max.overlaps = Inf,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(violet_de_3tissues$avg_log2FC) - .05), (max(violet_de_3tissues$avg_log2FC + 0.5)))) 
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_mglia_violet_HC_CN_FrCx.pdf"), p1, width = 10, height = 5)
+
+# smalller
+p2 <- EnhancedVolcano(violet_de_3tissues,
+                lab = violet_de_3tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 2.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                #maxoverlapsConnectors = 3,
+                max.overlaps = Inf,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(violet_de_3tissues$avg_log2FC) - .05), (max(violet_de_3tissues$avg_log2FC + 0.5)))) 
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_mglia_violet_HC_CN_FrCx_smaller_labs.pdf"), p2, width = 10, height = 5)
+```
+
+
+```{r}
+
+
+violet_de_4tissues <- mglia_violet_de 
+
+keyvals.col <- case_when(
+  violet_de_4tissues$tissue == "HC" ~ mycoloursP[16],  
+  violet_de_4tissues$tissue == "FrCx" ~ mycoloursP[8],
+  violet_de_4tissues$tissue == "CN" ~ mycoloursP[18],
+  violet_de_4tissues$tissue == "CB" ~ mycoloursP[22])
+
+names(keyvals.col)[keyvals.col == mycoloursP[16]]<-"HC"
+names(keyvals.col)[keyvals.col == mycoloursP[18]]<-"CN"
+names(keyvals.col)[keyvals.col == mycoloursP[8]]<-"FrCx"
+names(keyvals.col)[keyvals.col == mycoloursP[22]]<-"CB"
+
+#keyvals.shape <- ifelse(
+ # violet_de_2tissues$Region == "CN", 17,16)
+
+
+# names(keyvals.shape)[keyvals.shape == 17] <- 'CN'
+# names(keyvals.shape)[keyvals.shape == 16] <- 'FrCx'
+
+
+int_genes <- chaperon_long_list
+
+
+
+p1 <- EnhancedVolcano(violet_de_4tissues,
+                lab = violet_de_4tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 3.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                #maxoverlapsConnectors = 3,
+                max.overlaps = Inf,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(violet_de_4tissues$avg_log2FC) - .05), (max(violet_de_4tissues$avg_log2FC + 0.5)))) 
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_mglia_violet_HC_CN_FrCx_CB.pdf"), p1, width = 10, height = 5)
+
+# smalller
+p2 <- EnhancedVolcano(violet_de_4tissues,
+                lab = violet_de_4tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 2.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                #maxoverlapsConnectors = 3,
+                max.overlaps = Inf,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(violet_de_4tissues$avg_log2FC) - .05), (max(violet_de_4tissues$avg_log2FC + 0.5)))) 
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_mglia_violet_HC_CN_CB_FrCx_smaller_labs.pdf"), p2, width = 10, height = 5)
+
+p3 <- EnhancedVolcano(violet_de_4tissues,
+                lab = violet_de_4tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 2.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = F, 
+                drawConnectors = T,
+                #maxoverlapsConnectors = 3,
+                max.overlaps = Inf,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                axisLabSize = 18,
+                legendLabSize = 18,
+                legendIconSize = 6,
+                legendPosition = "right",
+                xlim = c((min(violet_de_4tissues$avg_log2FC) - .05), (max(violet_de_4tissues$avg_log2FC + 0.5)))) 
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_mglia_violet_HC_CN_CB_FrCx_no_box.pdf"), p3, width = 10, height = 5)
+```
+## astro
+```{r}
+
+
+thyme_de_2tissues <- astro_thyme_de %>% filter(tissue %in% c("HC", "FrCx"))
+
+
+keyvals.col <- ifelse(
+  thyme_de_2tissues$tissue == "HC", mycoloursP[16],  mycoloursP[8])
+
+names(keyvals.col)[keyvals.col == mycoloursP[16]]<-"HC"
+names(keyvals.col)[keyvals.col == mycoloursP[8]]<-"FrCx"
+
+
+
+
+int_genes <- chaperon_long_list
+
+
+
+p1 <- EnhancedVolcano(thyme_de_2tissues,
+                lab = thyme_de_2tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 3.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                max.overlaps = Inf,
+                #maxoverlapsConnectors = 3,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(thyme_de_2tissues$avg_log2FC) - .05), (max(thyme_de_2tissues$avg_log2FC + 0.5)))) 
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_astro_thyme_HC_FrCx.pdf"), p1, width = 10, height = 5)
+```
+
+
+```{r}
+
+
+thyme_de_3tissues <- astro_thyme_de %>% filter(tissue %in% c("FrCx", "CN", "HC"))
+
+
+keyvals.col <- case_when(
+  thyme_de_3tissues$tissue == "HC" ~ mycoloursP[16],  
+  thyme_de_3tissues$tissue == "FrCx" ~ mycoloursP[8],
+  thyme_de_3tissues$tissue == "CN"    ~   mycoloursP[18])
+
+names(keyvals.col)[keyvals.col == mycoloursP[16]]<-"HC"
+names(keyvals.col)[keyvals.col == mycoloursP[18]]<-"CN"
+names(keyvals.col)[keyvals.col == mycoloursP[8]]<-"FrCx"
+
+#keyvals.shape <- ifelse(
+ # violet_de_2tissues$Region == "CN", 17,16)
+
+
+# names(keyvals.shape)[keyvals.shape == 17] <- 'CN'
+# names(keyvals.shape)[keyvals.shape == 16] <- 'FrCx'
+
+
+int_genes <- chaperon_long_list
+
+
+
+p1 <- EnhancedVolcano(thyme_de_3tissues,
+                lab = thyme_de_3tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 3.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                max.overlaps = Inf,
+                #maxoverlapsConnectors = 3,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(violet_de_3tissues$avg_log2FC) - .05), (max(thyme_de_3tissues$avg_log2FC + 0.5)))) 
+
+
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_astro_thyme_HC_CN_FrCx.pdf"), p1, width = 10, height = 4)
+
+
+p1 <- EnhancedVolcano(thyme_de_3tissues,
+                lab = thyme_de_3tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 2,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                max.overlaps = Inf,
+                #maxoverlapsConnectors = 3,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(violet_de_3tissues$avg_log2FC) - .05), (max(thyme_de_3tissues$avg_log2FC + 0.5)))) 
+
+
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_astro_thyme_HC_CN_FrCx_smaller_labs.pdf"), p1, width = 10, height = 4)
+```
+
+## oligos
+```{r}
+
+
+pine_de_3tissues <- OPC_pine_de %>% filter(tissue %in% c("CB", "CN", "HC"))
+
+
+keyvals.col <- case_when(
+  pine_de_3tissues$tissue == "HC" ~ mycoloursP[16],  
+  pine_de_3tissues$tissue == "CB" ~ mycoloursP[22],
+  pine_de_3tissues$tissue == "CN"    ~   mycoloursP[18])
+
+names(keyvals.col)[keyvals.col == mycoloursP[16]]<-"HC"
+names(keyvals.col)[keyvals.col == mycoloursP[18]]<-"CN"
+names(keyvals.col)[keyvals.col == mycoloursP[22]]<-"CB"
+names(keyvals.col)[keyvals.col == mycoloursP[8]]<-"FrCx"
+
+#keyvals.shape <- ifelse(
+ # violet_de_2tissues$Region == "CN", 17,16)
+
+
+# names(keyvals.shape)[keyvals.shape == 17] <- 'CN'
+# names(keyvals.shape)[keyvals.shape == 16] <- 'FrCx'
+
+
+int_genes <- chaperon_long_list
+
+
+
+p1 <- EnhancedVolcano(pine_de_3tissues,
+                lab = pine_de_3tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 3.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                max.overlaps = Inf,
+                #maxoverlapsConnectors = 3,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(pine_de_3tissues$avg_log2FC) - .05), (max(pine_de_3tissues$avg_log2FC + 0.5)))) 
+
+
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_opc_pine_HC_CN_CB.pdf"), p1, width = 10, height = 4)
+
+
+p1 <- EnhancedVolcano(pine_de_3tissues,
+                lab = pine_de_3tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 2,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                max.overlaps = Inf,
+                #maxoverlapsConnectors = 3,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(pine_de_3tissues$avg_log2FC) - .05), (max(pine_de_3tissues$avg_log2FC + 0.5)))) 
+
+
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_opc_pine_HC_CN_CB_smaller_labs.pdf"), p1, width = 10, height = 4)
+```
+HC 16, CB 22
+
+
+```{r}
+
+
+pine_de_4tissues <- OPC_pine_de 
+
+
+keyvals.col <- case_when(
+  pine_de_4tissues$tissue == "HC" ~ mycoloursP[16],  
+  pine_de_4tissues$tissue == "CB" ~ mycoloursP[22],
+  pine_de_4tissues$tissue == "CN"    ~   mycoloursP[18],
+  pine_de_4tissues$tissue == "FrCx" ~ mycoloursP[8])
+
+names(keyvals.col)[keyvals.col == mycoloursP[16]]<-"HC"
+names(keyvals.col)[keyvals.col == mycoloursP[18]]<-"CN"
+names(keyvals.col)[keyvals.col == mycoloursP[22]]<-"CB"
+names(keyvals.col)[keyvals.col == mycoloursP[8]]<-"FrCx"
+
+#keyvals.shape <- ifelse(
+ # violet_de_2tissues$Region == "CN", 17,16)
+
+
+# names(keyvals.shape)[keyvals.shape == 17] <- 'CN'
+# names(keyvals.shape)[keyvals.shape == 16] <- 'FrCx'
+
+
+int_genes <- chaperon_long_list
+
+
+
+p1 <- EnhancedVolcano(pine_de_4tissues,
+                lab = pine_de_4tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 3.5,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                max.overlaps = Inf,
+                #maxoverlapsConnectors = 3,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(pine_de_4tissues$avg_log2FC) - .05), (max(pine_de_4tissues$avg_log2FC + 0.5)))) 
+
+
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_opc_pine_HC_CN_CB_FrCx.pdf"), p1, width = 10, height = 4)
+
+
+p1 <- EnhancedVolcano(pine_de_4tissues,
+                lab = pine_de_4tissues$gene,
+                x = "avg_log2FC",
+                y = "p_val_adj", 
+                labSize = 2,
+                FCcutoff = 0.8,
+                pCutoff = 0.05,
+                pointSize = 3,
+                raster = F,
+                #shapeCustom = keyvals.shape,
+                colCustom = keyvals.col,
+                selectLab = unique(int_genes),
+                boxedLabels = T,         
+                drawConnectors = T,
+                max.overlaps = Inf,
+                #maxoverlapsConnectors = 3,
+                labFace = "bold",
+                title = NULL,
+                subtitle =NULL,
+                legendLabSize = 18,
+                legendIconSize = 4,
+                legendPosition = "right",
+                xlim = c((min(pine_de_4tissues$avg_log2FC) - .05), (max(pine_de_4tissues$avg_log2FC + 0.5)))) 
+
+
+ggsave(here("outs/repeat_with_no_schizophrenia/chaperons/volcano_plot_chaperons_opc_pine_HC_CN_CB_FrCx_smaller_labs.pdf"), p1, width = 10, height = 4)
+```
+
+# Summaries
+```{r}
+filter(OPC_pine_de, gene %in% int_genes) %>% count(tissue)
+filter(mglia_violet_de, gene %in% int_genes) %>% count(tissue)
+filter(astro_thyme_de, gene %in% int_genes) %>% count(tissue)
+table(OPC_pine_de$tissue)
+table(mglia_violet_de$tissue)
+table(astro_thyme_de$tissue)
+
+```
+
