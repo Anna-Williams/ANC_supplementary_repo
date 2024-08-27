@@ -1,0 +1,97 @@
+---
+title: "Redo chaperone dotplots"
+author: "Sunniva Bostrand"
+date: '2024-06-08'
+output: html_document
+---
+
+This script shows how I generated new dot plots for overlapping chaperone genes (each gene overlapping between at least two of the clusters OPC_Pine, Astro_Thyme and Mglia_Violet)
+
+#set wd and load libraries
+```{r}
+setwd("C:/Users/44745/Downloads/OneDrive_1_8-6-2024")
+library(Seurat)
+library(dplyr)
+library(here)
+library(ggsci)
+library(scater)
+```
+
+# Prepare colours
+```{r}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7, "black", "blue")
+```
+
+
+```{r}
+#astrocytes
+astros <-readRDS("C:/Users/44745/Downloads/OneDrive_1_8-6-2024/astrocytes.rds")
+DefaultAssay(astros) <- "RNA"
+#oligodendrocytes
+oligos <-readRDS("C:/Users/44745/Downloads/OneDrive_1_8-6-2024/oligodendrocytes.rds")
+DefaultAssay(oligos) <- "RNA"
+#microglia
+mglia <-readRDS("C:/Users/44745/Downloads/OneDrive_1_8-6-2024/microglia.rds")
+DefaultAssay(mglia) <- "RNA"
+```
+
+```{r}
+
+oligos$ol_clusters_named_without_skf<- factor(oligos$ol_clusters_named_without_skf,
+                                             levels = c("Oligo_Cedar",
+  "Oligo_Rowan",
+  "Oligo_Birch",
+  "Oligo_Maple",
+  "Oligo_Elder",
+  "Oligo_Oak",
+  "OPC_Pine",
+  "OPC_Fir",
+  "COPs"))
+
+                                             
+Idents(oligos) <- oligos$ol_clusters_named_without_skf
+```
+
+
+
+```{r}
+int_genes <- c(
+  # HSP70 Family
+   "ST13", "HSPA1A", "HSPA1B", "HSPA4L", "HSPA6", "HSPA9", "BAG3",  "HSPH1", 
+  
+  # HSP90 Family
+  "HSP90AB1", "AHSA1", "PTGES3", "CHORDC1", "PPID",
+  
+  # HSP60 Family
+  "HSPD1", "HSPE1", 
+  
+  # Small HSPs (HSPB Family)
+  "HSPB1",  
+  
+  # J-domain Proteins (DNAJ or HSP40 Family)
+  "DNAJA1", "DNAJA4", "DNAJB1", "DNAJB6", "DNAJC7", 
+  
+  # TCP-1 Ring Complex (TRiC or CCT Complex)
+  "CCT3", "CCT4", "CCT5", "CCT6A", "CCT8", "TCP1"
+)
+p1 <- DotPlot(oligos, features = int_genes, col.min = 0) + RotatedAxis()
+p2 <- DotPlot(astros, features = int_genes, col.min = 0) + RotatedAxis()
+p3 <- DotPlot(mglia, features = int_genes, col.min = 0) + RotatedAxis()
+
+rm(PlotList)
+PlotList<- list()
+PlotList[[1]] <- p1
+PlotList[[2]] <- p2
+PlotList[[3]] <- p3
+
+pdf(here("C:/Users/44745/Downloads/OneDrive_1_8-6-2024/20240806_dotplot_chaperones_shared.pdf"), width = 11, height = 5)
+print(PlotList)
+dev.off()
+```
