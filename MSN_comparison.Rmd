@@ -1,0 +1,93 @@
+---
+title: "Plot MSN numbers"
+author: "Sunniva Bostrand"
+date: '2022-10-28'
+output: html_document
+---
+
+This script shows how I generated some of the additional plots for the thesis figures
+
+#set wd and load libraries
+```{r}
+setwd("/exports/eddie/scratch/s1359339/HD/06_swapped")
+library(Seurat)
+library(dplyr)
+library(here)
+library(ggsci)
+library(scater)
+```
+
+# Prepare colours
+```{r}
+mypal <- pal_npg("nrc", alpha = 0.7)(10)
+mypal2 <-pal_tron("legacy", alpha = 0.7)(7)
+mypal3 <- pal_lancet("lanonc", alpha = 0.7)(9)
+mypal4 <- pal_simpsons(palette = c("springfield"), alpha = 0.7)(16)
+mypal5 <- pal_rickandmorty(palette = c("schwifty"), alpha = 0.7)(6)
+mypal6 <- pal_futurama(palette = c("planetexpress"), alpha = 0.7)(5)
+mypal7 <- pal_startrek(palette = c("uniform"), alpha = 0.7)(5)
+mycoloursP<- c(mypal, mypal2, mypal3, mypal4, mypal5, mypal6, mypal7, "black", "blue")
+```
+
+
+# Load datasets and update annotations
+```{r}
+
+seur_comb <- readRDS("/exports/eddie/scratch/s1359339/HD/20211005_swapped_data/20211005_seur_comb_qc_integrated_annot_swappedsamples.rds")
+
+```
+
+
+#Count and plot MSNs
+```{r}
+#subset for CN
+seur_comb <- seur_comb[,seur_comb$Tissue == "CN"]
+
+met_dat <- seur_comb@meta.data
+# count rows per sample (= number of nuclei per sample)
+total_df<- met_dat %>% group_by(ProcessNumber) %>%
+  summarise(total_nuc_count = length(ProcessNumber))
+# merge with metadata
+met_dat <- merge(met_dat, total_df, by = "ProcessNumber")
+met_dat <- met_dat[!duplicated(met_dat$ProcessNumber),]
+
+bp <- ggplot(met_dat, aes(donor_status, total_nuc_count, fill = donor_status, shape = donor_status)) +
+  geom_boxplot() + geom_point() + theme_classic() + theme(legend.position = "none") + scale_fill_brewer(palette = "Dark2") +   ylab("Number nl expressing PPP1R1B per sample") + xlab("Donor Status") + theme(axis.text = element_text(size = 25))  + theme(axis.title = element_text(size = 25))     
+
+
+#subset for PPP1RB+ clusters - new 2024
+MSNs<- subset(seur_comb, idents =c("IN_1_cn", "IN_12_cn", "IN_9_cn"))
+met_dat_msn <- MSNs@meta.data
+
+
+# count rows per sample (= number of nuclei per sample)
+total_msn_df<- met_dat_msn %>% group_by(ProcessNumber) %>%
+  summarise(total_nuc_count = length(ProcessNumber))
+
+met_dat_msn <- merge(met_dat_msn, total_msn_df, by = "ProcessNumber")
+met_dat_msn <- met_dat_msn[!duplicated(met_dat_msn$ProcessNumber),]
+
+
+#merge and find proportion
+merged_df <- merge(met_dat, met_dat_msn, by = "ProcessNumber")
+merged_df<- merged_df %>% mutate(prop = total_nuc_count.y / total_nuc_count.x)
+met_dat_msn <- met_dat_msn %>% left_join(merged_df %>% select(ProcessNumber, prop), by = "ProcessNumber")
+
+
+bp <- ggplot(met_dat_msn, aes(donor_status, prop, fill = donor_status, shape = donor_status)) +
+  geom_boxplot() + geom_point() + theme_classic() + theme(legend.position = "none") + scale_fill_brewer(palette = "Dark2") +   ylab("Prop of nl in CN in PPP1R1B-expressing clusters per sample") + xlab("Donor Status") + theme(axis.text = element_text(size = 25))  + theme(axis.title = element_text(size = 25))     
+
+shapiro.test(met_dat_msn$prop)
+
+t.test(met_dat_msn$prop ~ met_dat_msn$donor_status)
+
+dp <- DimPlot(MSNs, split.by = "donor_status", cols =  mycoloursP)
+
+pdf(here("thesisplots","20240207_MSN_prop_barplot.pdf"), width = 5, height = 9)
+print(bp)
+dev.off()
+
+pdf(here("thesisplots","20240207_MSN_dimplot.pdf"), width = 8, height = 5)
+print(dp)
+dev.off()
+```
